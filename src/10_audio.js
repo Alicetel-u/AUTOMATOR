@@ -123,6 +123,65 @@ J.forgetSong = async () => {
   try { const db = await IDB.open(); await new Promise(res => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').delete('song'); tx.oncomplete = res; tx.onerror = res; }); } catch (e) {}
 };
 
+/* placed pictures. Bytes stay in IndexedDB under clip:<id> (legacy single picture: 'character'). */
+J.clips = {};
+const idbPut = async (key, value) => {
+  const db = await IDB.open();
+  await new Promise((res, rej) => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').put(value, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+};
+const idbGet = async (key) => {
+  const db = await IDB.open();
+  return await new Promise((res, rej) => { const tx = db.transaction('files', 'readonly'); const q = tx.objectStore('files').get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+};
+J.saveClipFile = async (id, file) => {
+  try { const data = await file.arrayBuffer(); await idbPut('clip:' + id, { name: file.name, type: file.type, data }); return true; } catch (e) { return false; }
+};
+J.loadClipFile = async (id) => {
+  try {
+    let rec = await idbGet('clip:' + id);
+    if ((!rec || !rec.data) && id === 'legacy') rec = await idbGet('character');
+    if (!rec || !rec.data) return null;
+    return new File([rec.data], rec.name || 'clip', { type: rec.type || '' });
+  } catch (e) { return null; }
+};
+J.forgetClipFile = async (id) => {
+  try {
+    const db = await IDB.open();
+    await new Promise(res => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').delete('clip:' + id); if (id === 'legacy') tx.objectStore('files').delete('character'); tx.oncomplete = res; tx.onerror = res; });
+  } catch (e) {}
+};
+J.forgetAllClipFiles = async () => {
+  try {
+    const db = await IDB.open();
+    const keys = await new Promise((res, rej) => { const tx = db.transaction('files', 'readonly'); const q = tx.objectStore('files').getAllKeys(); q.onsuccess = () => res(q.result || []); q.onerror = () => rej(q.error); });
+    await new Promise(res => {
+      const tx = db.transaction('files', 'readwrite');
+      for (const k of keys) if (k === 'character' || String(k).startsWith('clip:')) tx.objectStore('files').delete(k);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+  } catch (e) {}
+};
+const seekVideoTo = (v, target) => {
+  if (!v || v.tagName !== 'VIDEO' || !(v.duration > 0)) return Promise.resolve();
+  const to = Math.min(Math.max(0, target), Math.max(0, v.duration - 0.04));
+  if (Math.abs((v.currentTime || 0) - to) < 0.0008) return Promise.resolve();
+  return new Promise(res => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; v.removeEventListener('seeked', finish); clearTimeout(timer); res(); };
+    const timer = setTimeout(finish, 1000);
+    v.addEventListener('seeked', finish);
+    try { v.pause(); v.currentTime = to; } catch (e) { finish(); }
+  });
+};
+/* export steps every visible video to this MV timestamp. A clip past its own end holds the last frame. */
+J.prepareClips = (t, clips) => Promise.all((clips || []).map(c => {
+  const rec = J.clips && J.clips[c.id];
+  if (!rec || rec.kind !== 'video') return Promise.resolve();
+  const dur = Math.max(0.05, +c.dur || 0);
+  if (t < (+c.start || 0) || t >= (+c.start || 0) + dur) return Promise.resolve();
+  return seekVideoTo(rec.el, (+c.trim || 0) + (t - (+c.start || 0)));
+}));
+
 /* rebuild a beat grid from a user BPM + first-beat offset */
 J.beatGrid = (bpm, offset, duration) => {
   const out = []; if (!(bpm > 0)) return out;

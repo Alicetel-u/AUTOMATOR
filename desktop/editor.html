@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JIZURA 配置</title>
+<link rel="stylesheet" href="/desktop/editor.css">
+</head>
+<body>
+<header>
+  <h1>配置</h1>
+  <p>歌詞のタイミングはこのウィンドウでは変えません。画像と動画を置いて、通常のMP4に書き出します。</p>
+</header>
+<div class="stage" id="stage"><canvas id="view" width="1280" height="720"></canvas></div>
+<div class="transport">
+  <button id="btnPlay" type="button">&#9654;</button>
+  <span class="tc" id="time">00:00.00 / 00:00.00</span>
+  <button id="btnDelete" type="button">削除</button>
+  <span class="tc muted" id="clipInfo"></span>
+  <button id="btnExport" class="primary" type="button">MP4を書き出す</button>
+  <span id="msg"></span>
+</div>
+<div class="tl">
+  <div class="tl-bar">
+    <button type="button" id="zoomOut" title="縮小">−</button>
+    <button type="button" id="zoomFit" title="全体を表示">全体</button>
+    <button type="button" id="zoomIn" title="拡大">＋</button>
+    <span class="muted">ホイールで左右、Ctrl+ホイールで拡大</span>
+  </div>
+  <div id="tracks"></div>
+</div>
+<input id="addFront" class="picker" type="file" accept="image/*,video/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.avif,.heic,.jfif,.mp4,.webm,.mov" multiple>
+<input id="addBack" class="picker" type="file" accept="image/*,video/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.avif,.heic,.jfif,.mp4,.webm,.mov" multiple>
+<script src="/vendor/mp4-muxer.min.js"></script>
+<script src="/src/01_util.js"></script>
+<script src="/src/02_fonts.js"></script>
+<script src="/src/02b_lang.js"></script>
+<script src="/src/03_text.js"></script>
+<script src="/src/04_styles.js"></script>
+<script src="/src/05_anim.js"></script>
+<script src="/src/05b_registry.js"></script>
+<script src="/src/06_layouts.js"></script>
+<script src="/src/07_decor.js"></script>
+<script src="/src/08_planner.js"></script>
+<script src="/src/08b_omakase.js"></script>
+<script src="/src/09_render.js"></script>
+<script src="/src/09b_autoimg.js"></script>
+<script src="/src/10_audio.js"></script>
+<script src="/src/11_export.js"></script>
+<script src="/src/11p_bgcamB.js"></script>
+<script src="/src/11p_decor.js"></script>
+<script src="/src/11p_decorB.js"></script>
+<script src="/src/11p_enter.js"></script>
+<script src="/src/11p_enterB.js"></script>
+<script src="/src/11p_exit.js"></script>
+<script src="/src/11p_exitB.js"></script>
+<script src="/src/11p_fxB.js"></script>
+<script src="/src/11p_horror1.js"></script>
+<script src="/src/11p_horror2.js"></script>
+<script src="/src/11p_horror3.js"></script>
+<script src="/src/11p_kinetic1.js"></script>
+<script src="/src/11p_kinetic2.js"></script>
+<script src="/src/11p_kinetic3.js"></script>
+<script src="/src/11p_layoutsA.js"></script>
+<script src="/src/11p_layoutsB.js"></script>
+<script src="/src/11p_layoutsC.js"></script>
+<script src="/src/11p_layoutsD.js"></script>
+<script src="/src/11p_looks.js"></script>
+<script src="/src/11p_styles.js"></script>
+<script src="/src/11p_treattrans.js"></script>
+<script src="/src/11p_typo1.js"></script>
+<script src="/src/11p_typo2.js"></script>
+<script src="/src/11p_typo3.js"></script>
+<script src="/src/11q_sets.js"></script>
+<script src="/src/12_ui.js"></script>
+<script src="/desktop/editor.js"></script>
+</body>
+</html>

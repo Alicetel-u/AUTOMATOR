@@ -190,6 +190,15 @@ BODY = {
     'このカットだけ手法をランダムに': 'Acak teknik cut ini saja',
     'このカットをシャッフル': 'Acak cut ini',
     'このカットをおまかせ': 'Buat variasi cut ini',
+    '動画と画像を配置': 'Tempatkan video dan gambar',
+    '曲と歌詞とタイミングを決めたら、別ウィンドウで画像と動画をタイムラインに置きます。': 'Setelah lagu, lirik, dan timing selesai, letakkan gambar dan video di timeline jendela lain.',
+    '配置ウィンドウを開く': 'Buka jendela penempatan',
+    'キャラクターを重ねる': 'Karakter',
+    '通常のMP4へ、文字と一緒に書き出します。画面の上でドラッグして移動し、右下の四角で大きさを変えます。グリーンバックとブラックバックには入りません。': 'Digambar ke MP4 biasa bersama lirik. Seret di pratinjau untuk memindahkan, dan gunakan kotak di kanan bawah untuk mengubah ukuran. Ekspor layar hijau dan layar hitam tidak menyertakannya.',
+    '文字の裏': 'Di belakang teks',
+    '文字の前': 'Di depan teks',
+    'ファイルを選ぶ': 'Pilih berkas',
+    '外す': 'Lepas',
 }
 
 UI = {

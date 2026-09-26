@@ -64,6 +64,7 @@
         <div id="audioName" class="muted audio-name">曲なし（読み込むと拍を検出してカットを合わせます）</div>
         <div class="row">
           <label class="file" title="mp3 / wav / m4a など">曲を読み込む<input id="audioFile" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"></label>
+
           <button id="btnTap" title="曲を再生しながら各行の頭でタップ">タップで同期</button>
         </div>
         <div class="fields pro-only">
@@ -156,6 +157,12 @@
           </div>
         </div>
         <div class="easy-sec">
+          <h3>動画と画像を配置</h3>
+          <p class="note">曲と歌詞とタイミングを決めたら、別ウィンドウで画像と動画をタイムラインに置きます。</p>
+          <button type="button" class="primary open-editor">配置ウィンドウを開く</button>
+          <div class="autoimg-mount"></div>
+        </div>
+        <div class="easy-sec">
           <h3>書き出し</h3>
           <div class="fields">
             <label class="field">画面比<select id="eAspect"><option value="16:9">16:9</option><option value="9:16">9:16 縦</option><option value="4:3">4:3</option><option value="3:4">3:4 縦</option><option value="1:1">1:1</option><option value="4:5">4:5 縦</option><option value="21:9">21:9</option></select></label>
@@ -235,6 +242,12 @@
       </div>
 
       <div class="tabpane" data-pane="out" hidden>
+        <div class="sec">
+          <div class="sec-h"><h2>動画と画像を配置</h2></div>
+          <p class="note">曲と歌詞とタイミングを決めたら、別ウィンドウで画像と動画をタイムラインに置きます。</p>
+          <button type="button" class="primary open-editor">配置ウィンドウを開く</button>
+          <div class="autoimg-mount"></div>
+        </div>
         <div class="fields">
           <label class="field">画面比<select id="outAspect"><option value="16:9">16:9</option><option value="9:16">9:16 縦</option><option value="4:3">4:3</option><option value="3:4">3:4 縦</option><option value="1:1">1:1</option><option value="4:5">4:5 縦</option><option value="21:9">21:9</option></select></label>
           <label class="field">解像度<select id="outRes"><option value="720">720p</option><option value="1080">1080p</option><option value="1440">1440p</option><option value="2160">4K</option></select></label>

@@ -156,6 +156,15 @@ BODY = {
     'このカットをシャッフル': 'Shuffle this cut',
     'このカットをおまかせ': 'Randomise this cut',
     'このカットをおまかせ': 'Randomize this cut',
+    '動画と画像を配置': 'Place video and images',
+    '曲と歌詞とタイミングを決めたら、別ウィンドウで画像と動画をタイムラインに置きます。': 'After the song, lyrics and timing are set, place images and video on a timeline in another window.',
+    '配置ウィンドウを開く': 'Open the placement window',
+    'キャラクターを重ねる': 'Character',
+    '通常のMP4へ、文字と一緒に書き出します。画面の上でドラッグして移動し、右下の四角で大きさを変えます。グリーンバックとブラックバックには入りません。': 'Drawn into a normal MP4 together with the lyrics. Drag on the preview to move it, and use the square at the lower right to resize. Green-screen and black-screen exports leave it out.',
+    '文字の裏': 'Behind the text',
+    '文字の前': 'In front of the text',
+    'ファイルを選ぶ': 'Choose a file',
+    '外す': 'Remove',
 
 
 }

@@ -25,6 +25,7 @@ J.defaultProject = () => ({
   typeset: false,                 // 文字整列: kana tracking, small particles / big first character, Latin sizing, 0.2 s lead, restraint
   centerDir: 'tb',                // 中央を空ける on tall frames: 'tb' = top / bottom, 'lr' = left / right
   centerFree: false,              // 中央を空ける: lay the cuts out in side bands (left / right or top / bottom) around a character
+  clips: [],                      // pictures placed in the editor window: behind or in front of the lyrics
   seed: 20260922,
   aspect: '16:9', res: 1080, fps: 24,
   fx: { motion: 0.7, glitch: 0.55, chroma: 0.7, decor: 0.5, density: 0.55, texture: 0.6, flash: true, onTwos: true, koma: 12, hud: 'auto', bgSwitch: 0.35 },
@@ -241,6 +242,9 @@ J.plan = (project, audio) => {
     lines: [], cuts: [], events: [], beats: audio && audio.beats ? audio.beats.slice() : [],
     hud: fx.hud === 'on' ? true : fx.hud === 'off' ? false : !!st.hud,
     keyBg: J.keyMode ? J.keyMode(project) : null,   // 'green' | 'black' | null — 合成用の背景
+    clips: project.clips || [],
+    autoimg: project.autoimg || null,   // AUTOIMG
+    outroId: J.outroIdFor ? J.outroIdFor(project) : null,   // AUTOIMG ending pattern
     centerFree: !!zones, zones,
     typeset: !!project.typeset, unify: !!project.unify,
     lang: J.resolveLang ? J.resolveLang(project) : 'ja',   // 歌詞の言語 (auto → detected)
@@ -531,11 +535,46 @@ J.plan = (project, audio) => {
       plan.cuts.push(makeCut({ text: title || '', lineText: '', line: li, start: visEnd, end: nextStart, layout: 'interlude', enter: 'blur', exit: 'blur', hold: 'still', inDur: 0.3, outDur: 0.3, params: J.LAYOUTS.interlude.plan(r2), decor: pickDecor(r2, st, en, Object.assign({}, fx, { decor: 1 }), 'interlude'), scheme: schemeIdx, seed: J.h(lineSeed, 405) }));
     }
   });
+  // outro: the lyrics are finished and the song is still playing. Keep the style's
+  // decorations and a beat accent over the pictures, and bring the title in at the end.
+  const outroStart = plan.cuts.reduce((m, c) => Math.max(m, c.end || 0), 0);
+  if (plan.duration - outroStart >= 0.8) {
+    const rng = J.rng(J.h(project.seed, 7701, plan.outroId || ''));
+    const dur = plan.duration - outroStart;
+    const olook = J.outroLookOf ? J.outroLookOf(plan.outroId) : null;
+    const titleFor = olook && olook.title != null ? olook.title : 3.6;
+    const titleText = [title, artist].filter(Boolean).join('  /  ');
+    const wantCam = olook && olook.cam && J.CAMERA[olook.cam] ? olook.cam : pickCam(rng, st, en, Object.assign({}, fx, { motion: Math.min(fx.motion || 0.7, 0.4) }), J.LAYOUTS.interlude || {}, false, history);
+    const camP = J.CAMERA[wantCam] && J.CAMERA[wantCam].plan ? J.CAMERA[wantCam].plan(rng, st) : {};
+    plan.cuts.push(makeCut({ text: '', lineText: '', line: -2, start: outroStart, end: plan.duration, layout: 'interlude', enter: 'blur', exit: 'blur', hold: 'drift', inDur: 0.5, outDur: 0.6,
+      params: { variant: 'quiet', showTitle: !!titleText && titleFor > 0 && dur >= 2.2, titleDelay: Math.max(0, dur - titleFor), titleText },
+      decor: outroDecor(rng, en, olook), scheme: schemeIdx, seed: J.h(project.seed, 7702), bg: 'none', cam: wantCam, camP }));
+    const fxOn = k2 => en.fx == null || en.fx[k2] !== false;
+    const beatMode = olook && olook.beat || 'other';
+    let beatN = 0;
+    if (beatMode !== 'none') {
+      for (const b of plan.beats || []) {
+        if (b < outroStart + 0.35 || b > plan.duration - 0.45) continue;
+        beatN++;
+        const step = beatMode === 'every' || beatMode === 'both' ? 1 : beatMode === 'fourth' ? 4 : 2;
+        if (beatN % step) continue;
+        if ((beatMode === 'shake' || beatMode === 'both') && fxOn('shake')) addEvent(b, 'shake', 0.34 * (fx.motion || 0.5), 0.16);
+        if (beatMode !== 'shake' && fxOn('flash') && fx.flash) addEvent(b, 'flash', beatMode === 'every' ? 0.34 : 0.42, 2 / 24);
+        else if (beatMode !== 'shake' && beatMode !== 'both' && fxOn('shake')) addEvent(b, 'shake', 0.28 * (fx.motion || 0.5), 0.14);
+      }
+    }
+    if (!beatN && beatMode !== 'none') {
+      for (let t = outroStart + 1.1; t < plan.duration - 0.8; t += J.clamp(dur / 5, 1.4, 2.8)) {
+        const pick = pickFx(rng, st, en, fx, false, fxHistory, 'mid');
+        if (pick) { const D2 = J.FXE[pick]; addEvent(t, pick, (D2.amp || 1) * 0.55, (D2.dur || 3) / 24); fxHistory.push(pick); }
+      }
+    }
+  }
   plan.cuts.sort((a, b) => a.start - b.start);
   plan.cuts.forEach((c, i) => {
     c.index = i;
     if (!zones || c.zone) return;
-    if (c.layout === 'interlude') { c.params = Object.assign({}, c.params, { showTitle: false }); return; }   // no lyric: the whole frame
+    if (c.layout === 'interlude') { if (c.line !== -2) c.params = Object.assign({}, c.params, { showTitle: false }); return; }   // no lyric: the whole frame. The ending cut keeps its title.
     c.zone = zoneOf(c.line);
   });
   plan.events.sort((a, b) => a.t - b.t);
@@ -819,6 +858,19 @@ function pickHold(rng, en, fx, history) {
     return [k, w * novelty(history, 'hold', k)];
   });
   return cands.length ? rng.wpick(cands) : 'still';
+}
+/* decorations that still read when there is no lyric left on screen */
+function outroDecor(rng, en, look) {
+  const wanted = look && look.decor && look.decor.length ? look.decor : ['brackets', 'rings', 'dots', 'sparks', 'waveform', 'arrows', 'slash'];
+  const pool = wanted.filter(k => J.DECOR[k] && (!en.decor || en.decor[k] !== false));
+  const bag = pool.slice(), out = [];
+  const count = Math.min(look && look.count || 3, bag.length);
+  for (let i = 0; i < count; i++) {
+    const k = rng.pick(bag);
+    bag.splice(bag.indexOf(k), 1);
+    out.push(decorParams(rng, k));
+  }
+  return out;
 }
 function decorParams(rng, k) {
   return { id: k, seed: rng.int(1, 1e9), n: rng.int(1, 3) + (k === 'shapes' ? 3 : 0) + (k === 'sparks' ? 4 : 0), right: rng.chance(0.5), low: rng.chance(0.5), accent: rng.chance(0.4), corner: rng.chance(0.5), big: rng.chance(0.4), mode: rng.pick(['count', 'index']), from: rng.int(0, 20), to: rng.int(30, 999), v: rng.int(0, 5), r: rng() };

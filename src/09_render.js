@@ -15,6 +15,19 @@ J.cutAt = (plan, t) => {
   return t < c.end ? c : null;
 };
 
+/* fitted box of the character picture, in design pixels. s = 1 fits the whole picture inside the frame. */
+J.characterBox = (plan, c, media) => {
+  if (!plan || !c || !media) return null;
+  const iw = media.videoWidth || media.naturalWidth || 0;
+  const ih = media.videoHeight || media.naturalHeight || 0;
+  if (!iw || !ih) return null;
+  const fit = Math.min(plan.W / iw, plan.H / ih);
+  const s = J.clamp(+c.s || 1, 0.05, 8) * fit;
+  const w = iw * s, h = ih * s;
+  const x = Number.isFinite(+c.x) ? +c.x : 0.5, y = Number.isFinite(+c.y) ? +c.y : 0.5;
+  return { x: x * plan.W - w / 2, y: y * plan.H - h / 2, w, h };
+};
+
 class Renderer {
   constructor() {
     this.scratch = mk(2, 2); this.small = mk(2, 2); this.tiny = mk(2, 2);
@@ -119,6 +132,10 @@ class Renderer {
       ctx.restore();
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
     }
+    if (!key && !opt.transparent && !opt.noCharacter) {
+      if (J.autoimgDraw) J.autoimgDraw(ctx, plan, scale, t);   // AUTOIMG
+      this.drawClips(ctx, plan, scale, 'back', t);
+    }
     const shx = J.rs(step, 71) * shake * 16 * u, shy = J.rs(step, 72) * shake * 11 * u;
     // ---------- content passes ----------
     const passes = [
@@ -193,6 +210,7 @@ class Renderer {
       const k = J.clamp(mlt / MC.morph.dur), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       this.drawMorph(ctx, L, e, allowFilter);
     }
+    if (!key && !opt.transparent && !opt.noCharacter) this.drawClips(ctx, plan, scale, 'front', t);
     // ---------- cut-to-cut transition: composite the previous cut's resting frame with this one ----------
     if (!opt.noTrans && mainCut && mainCut.trans && J.TRANS[mainCut.trans] && mainCut.index > 0) {
       const lt = tq - mainCut.start, dur = mainCut.transDur || 0.35;
@@ -217,6 +235,25 @@ class Renderer {
     // ---------- post ----------
     if (!opt.noPost) this.post(ctx, plan, t, tq, step, sc, scale, opt, allowFilter);
     if (key && !opt.noPost) this.keyFinish(ctx, key, opt);
+  }
+
+  /* clips sit in screen space: 'back' under the lyrics, 'front' over them and under the transitions */
+  drawClips(ctx, plan, scale, place, t) {
+    const list = plan.clips || [];
+    const span = Math.max(0.05, plan.duration || 0);
+    ctx.save();
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+    for (const c of list) {
+      if ((c.place === 'front' ? 'front' : 'back') !== place) continue;
+      const dur = Math.min(Math.max(0.05, +c.dur || span), Math.max(0.05, span - (+c.start || 0)));
+      if (t < (+c.start || 0) || t >= (+c.start || 0) + dur) continue;
+      const media = J.clips && J.clips[c.id] && J.clips[c.id].el;
+      const box = J.characterBox(plan, c, media);
+      if (!box) continue;
+      try { ctx.drawImage(media, box.x, box.y, box.w, box.h); } catch (e) {}
+    }
+    ctx.restore();
   }
 
   /* 合成用の背景: make the finished frame monochrome (white text + effects only) and put it on the key colour.

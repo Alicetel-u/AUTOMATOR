@@ -247,7 +247,16 @@ BODY = {
     '標準': 'Tiêu chuẩn',
     '最高': 'Tối đa',
     '高': 'Cao',
-    '中止': 'Đã hủy'
+    '中止': 'Đã hủy',
+    '動画と画像を配置': 'Đặt video và ảnh',
+    '曲と歌詞とタイミングを決めたら、別ウィンドウで画像と動画をタイムラインに置きます。': 'Sau khi chọn nhạc, lời và thời điểm, hãy đặt ảnh và video lên dòng thời gian ở cửa sổ khác.',
+    '配置ウィンドウを開く': 'Mở cửa sổ sắp đặt',
+    'キャラクターを重ねる': 'Nhân vật',
+    '通常のMP4へ、文字と一緒に書き出します。画面の上でドラッグして移動し、右下の四角で大きさを変えます。グリーンバックとブラックバックには入りません。': 'Được vẽ vào MP4 thường cùng lời. Kéo trên bản xem trước để di chuyển, và dùng ô ở góc dưới bên phải để đổi kích thước. Bản xuất nền xanh và nền đen không gồm nhân vật.',
+    '文字の裏': 'Phía sau chữ',
+    '文字の前': 'Phía trước chữ',
+    'ファイルを選ぶ': 'Chọn tệp',
+    '外す': 'Gỡ',
 }
 
 UI = {

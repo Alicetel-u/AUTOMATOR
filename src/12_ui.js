@@ -125,6 +125,25 @@ function mergeProject(p) {
   for (const uf of o.userFonts) if (!J.FONTS[uf.key]) J.addUserFont(uf.key, uf.label, uf.family, uf.weight);
   o.fonts = {};
   for (const [role, k] of Object.entries((p && p.fonts) || {})) if (typeof k === 'string' && J.FONTS[k] && /^[\w-]+$/.test(role)) o.fonts[role] = k;
+  const axis = (v, d) => Number.isFinite(+v) ? J.clamp(+v, -1, 2) : d;
+  const cleanClip = (c) => ({
+    id: String(c.id).slice(0, 40),
+    place: c.place === 'front' ? 'front' : 'back',
+    name: String(c.name || '').slice(0, 180),
+    kind: c.kind === 'video' ? 'video' : 'image',
+    start: Math.max(0, +c.start || 0),
+    trim: Math.max(0, +c.trim || 0),
+    dur: Math.max(0.1, +c.dur || 0.1),
+    x: axis(c.x, 0.5), y: axis(c.y, 0.5),
+    s: Number.isFinite(+c.s) ? J.clamp(+c.s, 0.05, 8) : 1,
+  });
+  let clips = Array.isArray(p && p.clips) ? p.clips.filter(c => c && /^[\w-]+$/.test(String(c.id || ''))).map(cleanClip).slice(0, 8) : [];
+  if (!clips.length && p && typeof p.characterName === 'string' && p.characterName) {
+    const src = p.character || {};
+    clips = [cleanClip({ id: 'legacy', place: src.place, name: p.characterName, kind: 'image', start: 0, trim: 0, dur: 86400, x: src.x, y: src.y, s: src.s })];
+  }
+  o.clips = clips;
+  delete o.character; delete o.characterName;
   return o;
 }
 const SET_UI = { horror: { name: 'ホラー', badge: 'ホ' }, typo: { name: '文字PV系', badge: '文' }, kinetic: { name: 'キネティック', badge: 'キ' } };
@@ -135,7 +154,18 @@ function setBadges(d) {
 function loadLocal() { try { const s = localStorage.getItem(LS_KEY); if (s) return mergeProject(JSON.parse(s)); } catch (e) {} return mergeProject(null); }
 let saveTimer = 0;
 function autosave() { clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 700); }
-function flushSave() { clearTimeout(saveTimer); try { localStorage.setItem(LS_KEY, JSON.stringify(S.project)); } catch (e) {} }
+let jizuraBc = null;
+try { jizuraBc = new BroadcastChannel('jizura'); } catch (e) {}
+function flushSave() {
+  clearTimeout(saveTimer);
+  try {
+    const prev = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (prev && Array.isArray(prev.clips)) S.project.clips = mergeProject(prev).clips;
+    localStorage.setItem(LS_KEY, JSON.stringify(S.project));
+    if (S.plan) S.plan.clips = S.project.clips;
+    if (jizuraBc) jizuraBc.postMessage({ type: 'project' });
+  } catch (e) {}
+}
 window.addEventListener('pagehide', () => { if (S.project) flushSave(); });
 
 /* ---------------- planning ---------------- */
@@ -261,6 +291,7 @@ function tick(now) {
       else { pause(); t = Math.min(t, S.plan.duration - 1e-3); if (S.tap) stopTap(); }
     }
     S.t = t; S.need = true;
+    syncClips(true);
     followTlPlayhead();
   }
   if (S.need) { S.need = false; draw(); }
@@ -275,16 +306,19 @@ function play() {
   if (S.audio) AP.play(S.audio.buffer, S.t);
   else S.t0 = performance.now() - S.t * 1000;
   S.playing = true; $('btnPlay').textContent = '❚❚'; $('btnPlay').setAttribute('aria-label', '一時停止');
+  syncClips(true);
 }
 function pause() {
   S.playing = false; AP.stop();
   $('btnPlay').textContent = '▶'; $('btnPlay').setAttribute('aria-label', '再生'); S.need = true;
+  syncClips(false);
 }
 function seek(t) {
   S.t = J.clamp(t, 0, Math.max(0, S.plan.duration - 1e-3));
   if (S.audio) { if (S.playing) AP.play(S.audio.buffer, S.t); }
   else S.t0 = performance.now() - S.t * 1000;
   refreshLoopHold();
+  syncClips(S.playing);
   S.need = true;
 }
 
@@ -753,6 +787,9 @@ async function resetAll() {
   S.project = mergeProject(null); S.project.lyrics = '';
   S.audio = null; if ($('audioFile')) $('audioFile').value = '';
   if (J.forgetSong) await J.forgetSong();
+  for (const id of Object.keys(J.clips || {})) dropClipEl(id);
+  if (J.forgetAllClipFiles) await J.forgetAllClipFiles();
+  if (J.autoimgClear) await J.autoimgClear(S.project);   // AUTOIMG
   $('audioName').textContent = audioNameDefault;
   ED.undo = []; ED.redo = []; H.list = []; H.i = -1;
   TL.z = 1; TL.off = 0;
@@ -1042,6 +1079,7 @@ function omakase() {
   const keepE = lockedEnabled(), keepP = lockedParams();
   const r = J.omakase(S.project);
   Object.assign(S.project, r);
+  if (J.autoimgReshuffle) J.autoimgReshuffle(S.project);   // AUTOIMG (photos and the ending pattern)
   restoreEnabled(keepE); restoreParams(keepP);
   fontKey = ''; syncUI(); replan(); commit();
   toast(`おまかせ：${J.STYLES[r.style].name} × ${J.MOODS[r.mood].name}`, r.colors.accentOn ? [r.colors.accent, r.colors.ghostA, r.colors.ghostB] : null);
@@ -1438,7 +1476,88 @@ function updateTap() {
   $('tapPanel').classList.toggle('compact', S.tap.done.length > 0);   // 最初の数回が終わったら説明を畳んで、固定しても邪魔にならないように
 }
 
-/* ---------------- sync all inputs from project ---------------- */
+/* ---------------- placed clips (edited in the other window, shown here) ---------------- */
+function syncClips(playing) {
+  const clips = (S.project && S.project.clips) || [];
+  const span = S.plan ? S.plan.duration : 0;
+  for (const c of clips) {
+    const rec = J.clips && J.clips[c.id];
+    if (!rec || rec.kind !== 'video' || !(rec.el.duration > 0)) continue;
+    const v = rec.el;
+    const dur = Math.min(Math.max(0.05, +c.dur || span), Math.max(0.05, span - (+c.start || 0)));
+    const active = S.t >= (+c.start || 0) && S.t < (+c.start || 0) + dur;
+    const local = (+c.trim || 0) + (S.t - (+c.start || 0));
+    if (!active || !playing || (v.duration && local >= v.duration - 0.05)) {
+      v.pause();
+      if (active && Math.abs((v.currentTime || 0) - local) > 0.045) {
+        try { v.currentTime = Math.min(Math.max(0, local), Math.max(0, v.duration - 0.04)); } catch (e) {}
+      }
+      continue;
+    }
+    if (v.paused) {
+      try { v.currentTime = Math.max(0, local); } catch (e) {}
+      const p = v.play(); if (p && p.catch) p.catch(() => {});
+    } else if (Math.abs(v.currentTime - local) > 0.2) {
+      try { v.currentTime = Math.max(0, local); } catch (e) {}
+    }
+  }
+}
+function dropClipEl(id) {
+  const rec = J.clips && J.clips[id];
+  if (!rec) return;
+  if (rec.url) URL.revokeObjectURL(rec.url);
+  if (rec.el) { if (rec.el.pause) rec.el.pause(); if (rec.el.remove) rec.el.remove(); }
+  delete J.clips[id];
+}
+async function attachClipFile(clip, file) {
+  const isVideo = (file.type || '').startsWith('video/') || /\.(mp4|webm|mov|m4v|ogv)$/i.test(file.name);
+  const url = URL.createObjectURL(file);
+  const el = isVideo ? document.createElement('video') : new Image();
+  if (isVideo) {
+    el.muted = true; el.defaultMuted = true; el.playsInline = true; el.preload = 'auto'; el.volume = 0;
+    el.style.cssText = 'position:fixed;width:1px;height:1px;left:0;top:0;opacity:0;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  try {
+    await new Promise((res, rej) => {
+      const bad = () => rej(new Error('read'));
+      if (isVideo) { el.addEventListener('loadeddata', () => res(), { once: true }); el.addEventListener('error', bad, { once: true }); el.src = url; el.load(); }
+      else { el.onload = () => res(); el.onerror = bad; el.src = url; }
+    });
+  } catch (e) { URL.revokeObjectURL(url); if (el.remove) el.remove(); return false; }
+  dropClipEl(clip.id);
+  J.clips[clip.id] = { el, url, kind: isVideo ? 'video' : 'image', name: file.name, mediaDur: isVideo ? el.duration : 0 };
+  return true;
+}
+async function loadProjectClips() {
+  try {
+    const prev = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (prev && Array.isArray(prev.clips) && S.project) S.project.clips = mergeProject(prev).clips;
+  } catch (e) {}
+  const clips = (S.project && S.project.clips) || [];
+  const keep = new Set(clips.map(c => c.id));
+  for (const id of Object.keys(J.clips || {})) if (!keep.has(id)) dropClipEl(id);
+  for (const c of clips) {
+    const have = J.clips[c.id];
+    if (have && have.name === c.name) continue;
+    const f = await J.loadClipFile(c.id);
+    if (f) await attachClipFile(c, f);
+  }
+  if (S.plan) S.plan.clips = clips;
+  S.need = true;
+}
+function openEditor() {
+  flushSave();
+  const api = window.pywebview && window.pywebview.api;
+  if (api && api.open_editor) { api.open_editor(); return; }
+  toast('配置ウィンドウはデスクトップアプリから開きます');
+}
+function bindEditor() {
+  document.querySelectorAll('.open-editor').forEach(b => b.addEventListener('click', openEditor));
+  let ch; try { ch = new BroadcastChannel('jizura'); } catch (e) { ch = null; }
+  if (ch) ch.onmessage = (e) => { if (e.data && e.data.type === 'clips') loadProjectClips(); };
+}
+
 function syncUI() {
   $('songTitle').value = S.project.title || ''; $('songArtist').value = S.project.artist || '';
   $('lyrics').value = S.project.lyrics;
@@ -1458,6 +1577,7 @@ function syncUI() {
 
 /* ---------------- wiring ---------------- */
 function bind() {
+  bindEditor();
   $('lyrics').addEventListener('input', e => { S.project.lyrics = e.target.value; replanSoon(260); });
   $('lyricLang').addEventListener('change', e => {
     remember();
@@ -1766,6 +1886,9 @@ function boot() {
   requestAnimationFrame(tick);
   // the song used last time (same name as the saved project's) comes back after a reload
   if (J.loadSong && S.project.audioName) J.loadSong().then(f => { if (f && f.name === S.project.audioName && !S.audio) loadAudioFile(f, true); });
+  loadProjectClips();
+  if (J.autoimgBind) J.autoimgBind(() => S.project, () => { replan(); flushSave(); });   // AUTOIMG
+  if (J.autoimgRestore) J.autoimgRestore(S.project).then(() => { S.need = true; });   // AUTOIMG
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 J.ui = S;
