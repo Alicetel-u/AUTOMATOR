@@ -12,6 +12,12 @@
   <p>タイムラインで選択し、プレビューでドラッグして移動・右下で拡大縮小。歌詞のタイミングはメイン画面で変更します。</p>
 </header>
 <div class="stage" id="stage"><canvas id="view" width="1280" height="720"></canvas></div>
+<div class="outro-controls">
+  <label>曲末の演出 <select class="outro-select" aria-label="曲末の演出"></select></label>
+  <button class="outro-roll" type="button">別の終わり方</button>
+  <label><input class="outro-title" type="checkbox">最後に曲名を表示</label>
+  <span class="outro-note muted"></span>
+</div>
 <div class="transport">
   <button id="btnPlay" type="button">&#9654;</button>
   <span class="tc" id="time">00:00.00 / 00:00.00</span>
@@ -50,6 +56,8 @@
 <script src="/src/09b_autoimg.js"></script>
 <script src="/src/10_audio.js"></script>
 <script src="/src/11_export.js"></script>
+<script src="/src/11p_astra.js"></script>
+<script src="/src/11p_astra_outro.js"></script>
 <script src="/src/11p_bgcamB.js"></script>
 <script src="/src/11p_decor.js"></script>
 <script src="/src/11p_decorB.js"></script>
@@ -74,7 +82,10 @@
 <script src="/src/11p_typo1.js"></script>
 <script src="/src/11p_typo2.js"></script>
 <script src="/src/11p_typo3.js"></script>
+<script src="/src/11p_typo4.js"></script>
 <script src="/src/11q_sets.js"></script>
+<script src="/src/11r_astra_policy.js"></script>
+<script src="/src/11s_outro_ui.js"></script>
 <script src="/desktop/editor.js"></script>
 </body>
 </html>

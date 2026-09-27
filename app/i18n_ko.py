@@ -366,3 +366,9 @@ SAMPLE = '새벽의 색을/기억해\n멀어진 목소리가 아득히 울렸어
 TITLE = 'JIZURA — 가사 모션 영상 메이커'
 
 DESCRIPTION = '브라우저에서 가사를 움직이는 가사 영상으로 만들고 MP4로 내보내세요.'
+
+# Astra expression library controls.
+BODY.update({'基本の部品を使う': '기본 부품 사용', '最初の公開版の基本演出。Astraだけを使う場合はオフにします': '최초 버전의 기본 효과입니다. Astra만 사용하려면 끄세요.', 'Astra生成部品を使う': 'Astra 생성 부품 사용', 'Astraが作った字組み・動き・装飾。演出のチェックをこれだけにするとAstra部品のみ使用（行指定・ロックも対象）。配色・書体は共通です': 'Astra가 만든 타이포그래피, 동작, 장식입니다. 효과 체크박스에서 이것만 선택하면 행 지정과 잠금을 포함해 Astra 부품만 사용합니다. 색상과 글꼴은 공용입니다.'})
+UI.update({'Astra生成部品': 'Astra', '基本の部品：使う': 'Base parts: on', '基本の部品：使わない': 'Base parts: off', 'Astra生成部品：使う': 'Astra parts: on', 'Astra生成部品：使わない': 'Astra parts: off'})
+
+BODY.update({'曲末の演出': '곡 끝 효과', '別の終わり方': '다른 엔딩', '最後に曲名を表示': '마지막에 곡 제목 표시'})

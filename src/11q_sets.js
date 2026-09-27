@@ -7,13 +7,16 @@
    2) 和風 (wa): entries built around a traditional Japanese object,
       pattern or motif. Applied after (1): with project.wa === false
       they are never picked at random.
-   A line can still be set to any entry by hand (per-line override).
+   A line can still be set to any entry by hand (per-line override),
+   except in Astra-only mode, where the final plan must stay in that library.
    3) Part sets with their own switch (not 追加分): ホラー (horror,
       off by default), 文字PV系 (typo) and キネティック (kinetic),
       both on by default. Entries carry `set: '<name>'` (or come
       from a pack of that name).
    Pack authors: packs not listed in J.BASE_PACKS count as 追加分;
    add Japanese-motif keys to J.WA (or set `wa: true` on the def).
+   4) Astra is opt-in. `base` controls original untagged parts (default on).
+      Only Astra checked means all other library switches are off.
    ============================================================ */
 (() => {
 'use strict';
@@ -29,7 +32,7 @@ J.WA = {
   treat: ['monoGrid'],
   style: ['sakura', 'sumi'],
 };
-J.SETS = { horror: { on: false }, typo: { on: true }, kinetic: { on: true } };   // on = default (UI labels live in 12_ui.js)
+J.SETS = { horror: { on: false }, typo: { on: true }, kinetic: { on: true }, astra: { on: false } };   // on = default (UI labels live in 12_ui.js)
 J.SET_ORDER = Object.keys(J.SETS);
 /* is this part set switched on in the project? (old projects without the flag get the default) */
 J.setOn = (project, set) => { const v = project && project[set]; return typeof v === 'boolean' ? v : !!(J.SETS[set] && J.SETS[set].on); };
@@ -45,9 +48,16 @@ for (const [g, keys] of Object.entries(J.WA)) for (const k of keys) { const d = 
 J.isWa = (g, k) => { const d = def(g, k); return !!(d && d.wa); };
 J.isExtra = (g, k) => { const d = def(g, k); return !!(d && d.extra); };
 J.setOf = (g, k) => { const d = def(g, k); return (d && d.set) || null; };
+J.astraOnly = p => !!(p && p.astra === true && p.base === false && !p.extra && p.wa === false
+  && J.SET_ORDER.every(s => s === 'astra' || !J.setOn(p, s)));
 /* may random picks use this entry? (g: a group key, 'style' or 'font') — 追加分 first, then 和風 */
 J.randomOk = (project, g, k) => {
   const d = def(g, k); if (!d) return false;
+  // Styles and fonts remain shared materials; these switches select expression parts.
+  if (J.GROUP_KEYS.includes(g)) {
+    if (J.astraOnly(project)) return d.set === 'astra';
+    if (!d.set && !d.extra && !d.wa && project && project.base === false) return false;
+  }
   if (d.extra && !(project && project.extra === true)) return false;
   if (d.wa && project && project.wa === false) return false;
   if (d.set && !J.setOn(project, d.set)) return false;

@@ -8,6 +8,7 @@ header p { margin: 0; color: var(--muted); font-size: 12px; }
 .stage { flex: 1; min-height: 180px; display: flex; align-items: center; justify-content: center; background: #0c0c0e; }
 canvas#view { background: #000; max-width: 100%; max-height: 100%; }
 .transport { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--line); }
+.outro-controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:8px 14px; border-top:1px solid var(--line); font-size:12px; }
 button, .file { background: #232329; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
 button.primary { background: var(--amber); color: #1a1200; border-color: transparent; font-weight: 700; }
 button:disabled { opacity: 0.45; cursor: default; }

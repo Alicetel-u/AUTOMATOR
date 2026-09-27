@@ -587,7 +587,9 @@ button.small.primary { padding: 4px 12px; }
             <button id="btnNext2" class="ghost">下一個方案 ▶</button>
           </div>
           <div class="pick-sets">
-            <label class="check"><input id="eExtra" class="extra-toggle" type="checkbox"><span>也使用新增的效果<small>首次公開版之後新增的約 350 種效果、12 種風格與 6 款字型，也列入隨機生成與重新排列的候選（關閉時只用首次公開版的效果）</small></span></label>
+            <label class="check"><input class="base-toggle" type="checkbox" checked><span>使用基本部件<small>最初版本的基本效果。只使用 Astra 時請關閉。</small></span></label>
+          <label class="check"><input class="astra-toggle" type="checkbox"><span>使用 Astra 生成部件<small>Astra 製作的排版、動態和裝飾。效果選項僅勾選此項時，只使用 Astra 部件（也適用於行指定與鎖定）。配色和字體共用。</small></span></label>
+          <label class="check"><input id="eExtra" class="extra-toggle" type="checkbox"><span>也使用新增的效果<small>首次公開版之後新增的約 350 種效果、12 種風格與 6 款字型，也列入隨機生成與重新排列的候選（關閉時只用首次公開版的效果）</small></span></label>
             <label class="check"><input id="eWa" class="wa-toggle" type="checkbox" checked><span>也使用和風效果<small>燈籠、明信片、障子、扇子、家紋、青海波、櫻花花瓣等和風圖形。關閉後，隨機生成與重新排列就不會選用</small></span></label>
             <label class="check"><input class="typo-toggle" type="checkbox" checked><span>使用文字排版部件<small>只用線條、數字與排版呈現的文字 PV 部件（約 50 個）</small></span></label>
             <label class="check"><input class="kinetic-toggle" type="checkbox" checked><span>使用動態文字部件<small>逐詞移動、彈跳、堆疊，以動態為主的部件（約 50 個）</small></span></label>
@@ -614,6 +616,9 @@ button.small.primary { padding: 4px 12px; }
           <p class="note">決定歌曲、歌詞和時間後，在另一個視窗的時間軸上放置圖片和影片。</p>
           <button type="button" class="primary open-editor">開啟配置視窗</button>
           <div class="autoimg-mount"></div>
+          <label class="field">曲末效果<select class="outro-select" aria-label="曲末效果"></select></label>
+          <div class="row"><button class="ghost outro-roll" type="button">另一種結尾</button><label class="check"><input class="outro-title" type="checkbox"><span>最後顯示歌名</span></label></div>
+          <p class="note outro-note"></p>
         </div>
         <div class="easy-sec">
           <h3>匯出</h3>
@@ -683,6 +688,8 @@ button.small.primary { padding: 4px 12px; }
 
       <div class="tabpane" data-pane="tech" hidden>
         <div class="pick-sets">
+          <label class="check"><input class="base-toggle" type="checkbox" checked><span>使用基本部件<small>最初版本的基本效果。只使用 Astra 時請關閉。</small></span></label>
+          <label class="check"><input class="astra-toggle" type="checkbox"><span>使用 Astra 生成部件<small>Astra 製作的排版、動態和裝飾。效果選項僅勾選此項時，只使用 Astra 部件（也適用於行指定與鎖定）。配色和字體共用。</small></span></label>
           <label class="check"><input id="tExtra" class="extra-toggle" type="checkbox"><span>也使用新增的效果<small>標有「新增」的手法、風格與字型。關閉時，隨機生成與重新排列只使用首次公開版的效果</small></span></label>
           <label class="check"><input id="tWa" class="wa-toggle" type="checkbox" checked><span>也使用和風效果<small>標有「和」的手法與風格。關閉後，隨機生成與重新排列不會選用（在「新增」的判定之後套用；逐行手動指定時仍可使用）</small></span></label>
           <label class="check"><input class="typo-toggle" type="checkbox" checked><span>使用文字排版部件<small>標有「文」的手法。關閉後，隨機生成與洗牌不會選用</small></span></label>
@@ -700,6 +707,9 @@ button.small.primary { padding: 4px 12px; }
           <p class="note">決定歌曲、歌詞和時間後，在另一個視窗的時間軸上放置圖片和影片。</p>
           <button type="button" class="primary open-editor">開啟配置視窗</button>
           <div class="autoimg-mount"></div>
+          <label class="field">曲末效果<select class="outro-select" aria-label="曲末效果"></select></label>
+          <div class="row"><button class="ghost outro-roll" type="button">另一種結尾</button><label class="check"><input class="outro-title" type="checkbox"><span>最後顯示歌名</span></label></div>
+          <p class="note outro-note"></p>
         </div>
         <div class="fields">
           <label class="field">畫面比例<select id="outAspect"><option value="16:9">16:9</option><option value="9:16">9:16 直式</option><option value="4:3">4:3</option><option value="3:4">3:4 直式</option><option value="1:1">1:1</option><option value="4:5">4:5 直式</option><option value="21:9">21:9</option></select></label>
@@ -3402,6 +3412,9 @@ J.defaultProject = () => ({
   extra: false,                   // random picks may use the parts added after the first version (追加分)
   wa: true,                       // …and the 和風 motifs (提灯・障子・家紋…) — applied after 'extra'
   horror: false,                  // parts sets (independent of 'extra'): ホラー (also enables the ホラー mood)
+  base: true,                     // original parts; missing in older projects means on
+  astra: false,                   // opt-in Astra-generated parts
+  outroTitle: false,              // explicitly show title in new instrumental endings
   typo: true,                     // 文字PV系 typographic parts
   kinetic: true,                  // キネティック parts
   lang: 'auto',                   // 歌詞の言語: 'auto' | 'ja' | 'zh-Hant' | 'zh-Hans' | 'ko' — picks the faces each font key is drawn with
@@ -3933,10 +3946,12 @@ J.plan = (project, audio) => {
     const titleText = [title, artist].filter(Boolean).join('  /  ');
     const wantCam = olook && olook.cam && J.CAMERA[olook.cam] ? olook.cam : pickCam(rng, st, en, Object.assign({}, fx, { motion: Math.min(fx.motion || 0.7, 0.4) }), J.LAYOUTS.interlude || {}, false, history);
     const camP = J.CAMERA[wantCam] && J.CAMERA[wantCam].plan ? J.CAMERA[wantCam].plan(rng, st) : {};
-    plan.cuts.push(makeCut({ text: '', lineText: '', line: -2, start: outroStart, end: plan.duration, layout: 'interlude', enter: 'blur', exit: 'blur', hold: 'drift', inDur: 0.5, outDur: 0.6,
-      params: { variant: 'quiet', showTitle: !!titleText && titleFor > 0 && dur >= 2.2, titleDelay: Math.max(0, dur - titleFor), titleText },
+    const authoredOutro=!!(olook && olook.layout && J.LAYOUTS[olook.layout]);
+    plan.cuts.push(makeCut({ text: '', lineText: '', line: -2, start: outroStart, end: plan.duration,
+      layout: authoredOutro ? olook.layout : 'interlude', instrumental: authoredOutro, enter: authoredOutro ? 'asCut' : 'blur', exit: authoredOutro ? 'asCutExit' : 'blur', hold: authoredOutro ? 'asStill' : 'drift', inDur: 0.5, outDur: authoredOutro ? 0 : 0.6,
+      params: { variant: 'quiet', showTitle: authoredOutro ? !!titleText && project.outroTitle === true : !!titleText && titleFor > 0 && dur >= 2.2, titleDelay: Math.max(0, dur - titleFor), titleText },
       decor: outroDecor(rng, en, olook), scheme: schemeIdx, seed: J.h(project.seed, 7702), bg: 'none', cam: wantCam, camP }));
-    const fxOn = k2 => en.fx == null || en.fx[k2] !== false;
+    const fxOn = k2 => !authoredOutro && (en.fx == null || en.fx[k2] !== false);
     const beatMode = olook && olook.beat || 'other';
     let beatN = 0;
     if (beatMode !== 'none') {
@@ -3965,12 +3980,14 @@ J.plan = (project, audio) => {
     cutNumbers[c.line] = n + 1;
     c.editKey = c.line + ':' + n;
     if (!zones || c.zone) return;
-    if (c.layout === 'interlude') { if (c.line !== -2) c.params = Object.assign({}, c.params, { showTitle: false }); return; }   // no lyric: the whole frame. The ending cut keeps its title.
+    if (c.line === -2) return; // authored endings always use the full frame, including centre-free mode
+    if (c.layout === 'interlude') { c.params = Object.assign({}, c.params, { showTitle: false }); return; }
     c.zone = zoneOf(c.line);
   });
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
+  if (J.astraOnly && J.astraOnly(project)) J.enforceAstraPlan(plan, project);
   return plan;
 };
 
@@ -4252,6 +4269,7 @@ function pickHold(rng, en, fx, history) {
 }
 /* decorations that still read when there is no lyric left on screen */
 function outroDecor(rng, en, look) {
+  if (look && look.layout) return []; // these endings draw their own complete composition
   const wanted = look && look.decor && look.decor.length ? look.decor : ['brackets', 'rings', 'dots', 'sparks', 'waveform', 'arrows', 'slash'];
   const pool = wanted.filter(k => J.DECOR[k] && (!en.decor || en.decor[k] !== false));
   const bag = pool.slice(), out = [];
@@ -4768,7 +4786,7 @@ class Renderer {
       }
     }
     // ---------- HUD ----------
-    if (plan.hud && !opt.noHud && layer !== 'back') {
+    if (plan.hud && !opt.noHud && layer !== 'back' && !(mainCut && mainCut.instrumental)) {
       const env = this.makeEnv(ctx, plan, mainCut, sc, { pass: 'main', t: tq, lt: 0, ltb: 0, step, scale, allowFilter, energy, beat: beatInfo });
       J.drawHUD(env, plan);
     }
@@ -5692,15 +5710,21 @@ const OUTRO_LOOKS = {
 J.OUTRO_LOOKS = OUTRO_LOOKS;
 J.OUTRO_IDS = Object.keys(OUTRO_LOOKS);
 J.outroLookOf = (id) => OUTRO_LOOKS[id] || OUTRO_LOOKS.afterglow;
+J.outroOptions = project => J.OUTRO_IDS.filter(id => {
+  const look=OUTRO_LOOKS[id];
+  if(look.set==='astra')return !!(J.setOn&&J.setOn(project,'astra'));
+  return !(J.astraOnly&&J.astraOnly(project));
+});
 J.outroIdFor = (project) => {
-  if (project && project.outroId && OUTRO_LOOKS[project.outroId]) return project.outroId;
-  return J.OUTRO_IDS[(Math.abs((project && project.seed) || 1) % J.OUTRO_IDS.length)];
+  const ids=J.outroOptions(project);
+  if (project && ids.includes(project.outroId)) return project.outroId;
+  return ids[Math.abs(((project && project.seed) || 1)|0)%ids.length] || 'afterglow';
 };
 J.outroReshuffle = (project) => {
   if (!project) return;
   const cur = project.outroId || J.outroIdFor(project);
-  const choices = J.OUTRO_IDS.filter(id => id !== cur);
-  project.outroId = choices[Math.floor(Math.random() * choices.length)] || 'afterglow';
+  const choices = J.outroOptions(project).filter(id => id !== cur);
+  project.outroId = choices[Math.floor(Math.random() * choices.length)] || J.outroIdFor(project);
 };
 J._autoimgShots = buildShots;
 J._autoimgFamily = familyOf;
@@ -6213,6 +6237,272 @@ J.planForAE = (plan, project, range) => {
   }
   return clean;
 };
+})();
+
+/* Astra: art-directed type compositions and restrained motion, in design-space units. */
+(() => {
+'use strict';
+const E = J.E, C = J.clamp;
+const calm = ['calm', 'editorial', 'emotional'], bold = ['graphic', 'pop', 'glitch'];
+const reg = (g, k, d) => J.register(g, k, Object.assign({set: 'astra', w: 1}, d), 'astra');
+const alive = e => E.outCubic(C(e.lt / .4)) * (1 - E.inCubic(e.pOut));
+const min = e => Math.min(e.W, e.H);
+const fontPlan = (rng, c, st) => ({font: rng.pick(J.fontsOf(st, ['display', 'serif'])), side: rng.chance(.5) ? 1 : -1, variant: rng.int(0, 2)});
+const wrap = (e, n = 10) => J.splitLines(e.cut.text || '', e.W < e.H ? Math.ceil(n / 2) : n);
+function type(e, text, x, y, w, h, extra = {}) {
+  const font = e.cut.params.font || e.st.fonts.display[0], opts = Object.assign({lead: 1.18, track: .035}, extra);
+  return Object.assign({text, font, x, y, color: e.sc.fg,
+    size: Math.min(min(e) * .34, J.fitSize(text, font, w, h, opts))}, opts);
+}
+function caption(e, text, x, y, align = 'left') {
+  e.draw({text, x, y, align, font: 'mono', size: min(e) * .019, track: .12, color: e.sc.sub, alpha: alive(e), ghost: false});
+}
+reg('layout', 'asMonument', {
+  name: 'Astra・モニュメント', tags: bold, ae: 'huge', fits: n => n <= 120, plan: fontPlan,
+  render(e) {
+    const {W,H,sc} = e, a = alive(e), text = wrap(e, 8);
+    const it = type(e,text,W*.5,H*.48,W*.78,H*.52,{track:-.035,lead:1.07});
+    e.rect(W*.1,H*.82,W*.8*a,min(e)*.007,sc.accent,a,false);
+    caption(e,String(e.cut.line+1).padStart(2,'0'),W*.1,H*.88);
+    return J.mainDraw(e,it);
+  }
+});
+reg('layout', 'asDiptych', {
+  name: 'Astra・二面の対話', tags: calm.concat('graphic'), ae: 'mixed', fits: n => n >= 2 && n <= 60, plan: fontPlan,
+  render(e) {
+    const {W,H,sc} = e, p = W < H, a = alive(e);
+    const words = e.cut.text.trim().split(/\s+/), chars = [...e.cut.text];
+    const units = words.length > 1 ? words : chars, mid = Math.ceil(units.length/2), join = words.length > 1 ? ' ' : '';
+    const halves = [units.slice(0,mid).join(join),units.slice(mid).join(join)];
+    let bb = null;
+    halves.forEach((t,i) => {
+      t = J.splitLines(t,p?6:5);
+      const it = type(e,t,p?W*.5:W*(.28+.44*i),p?H*(.34+.32*i):H*.5,W*(p?.78:.36),H*(p?.24:.5),{mi:i, color:i?sc.accent:sc.fg});
+      // Preserve contrast in arbitrary user palettes.
+      if(J.contrast(it.color,sc.bg)<3) it.color=sc.fg;
+      bb=J.unionBB(bb,J.mainDraw(e,it));
+    });
+    e.line(p?[[W*.2,H*.5],[W*(.2+.6*a),H*.5]]:[[W*.5,H*.25],[W*.5,H*(.25+.5*a)]],sc.sub,min(e)*.0015,a*.55,false);
+    return bb;
+  }
+});
+reg('layout', 'asSpine', {
+  name: 'Astra・縦組みの背骨', tags: calm, ae: 'vcols', fits: n => n <= 28, plan: fontPlan,
+  render(e) {
+    const {W,H,sc} = e, side=e.cut.params.side, a=alive(e);
+    const text=J.splitLines(e.cut.text,W<H?9:6);
+    const it=type(e,text,W*(side>0?.57:.43),H*.5,W*.55,H*.75,{vertical:true,track:.12,lead:1.5});
+    const x=W*(side>0?.16:.84);
+    e.line([[x,H*.13],[x,H*(.13+.74*a)]],sc.accent,min(e)*.002,a,false);
+    caption(e,String(e.cut.line+1).padStart(2,'0'),W*.5,H*.93,'center');
+    return J.mainDraw(e,it);
+  }
+});
+reg('layout', 'asPassepartout', {
+  name: 'Astra・額装タイポ', tags: calm.concat('graphic'), ae: 'center', fits: n => n <= 80, plan: fontPlan,
+  render(e) {
+    const {W,H,sc}=e,a=alive(e),m=min(e),text=wrap(e);
+    const it=type(e,text,W*.5,H*.5,W*.65,H*.43);
+    const b={x:W*.09,y:H*.18,w:W*.82,h:H*.64};
+    const ctx=e.ctx;
+    if(e.pass==='main') {
+      ctx.save();ctx.globalAlpha*=a*.5;ctx.strokeStyle=sc.sub;ctx.lineWidth=m*.0012;
+      ctx.strokeRect(b.x,b.y,b.w,b.h);ctx.restore();
+    }
+    e.rect(b.x,b.y,m*.07*a,m*.005,sc.accent,a,false);
+    e.rect(b.x+b.w-m*.07*a,b.y+b.h,m*.07*a,m*.005,sc.accent,a,false);
+    return J.mainDraw(e,it);
+  }
+});
+reg('layout', 'asStaircase', {
+  name: 'Astra・段差のリズム', tags: bold.concat('editorial'), ae: 'mixed', fits: n => n <= 60, plan: fontPlan,
+  render(e) {
+    const {W,H,sc}=e, ls=J.splitLines(e.cut.text,Math.max(1,Math.ceil(J.glyphCount(e.cut.text)/3))).split('\n');
+    const count=ls.length, dy=Math.min(H*.2,H*.58/count);let bb=null;
+    ls.forEach((t,i)=>{
+      const x=W*(.4+.2*i/Math.max(1,count-1)),y=H*.5+(i-(count-1)/2)*dy;
+      const it=type(e,t,x,y,W*.6,dy*.75,{mi:i,track:-.02});
+      bb=J.unionBB(bb,J.mainDraw(e,it));
+    });
+    e.rect(W*.1,H*.19,min(e)*.035,min(e)*.035,sc.accent,alive(e),false);
+    return bb;
+  }
+});
+reg('layout', 'asHorizon', {
+  name: 'Astra・水平線の詩', tags: calm, ae: 'center', fits: n => n <= 120, plan: fontPlan,
+  render(e) {
+    const {W,H,sc}=e,a=alive(e);
+    e.line([[W*.1,H*.68],[W*(.1+.8*a),H*.68]],sc.sub,min(e)*.001,a*.7,false);
+    const it=type(e,wrap(e),W*.5,H*.48,W*.75,H*.31,{track:.16});
+    it.size*=.85;
+    caption(e,String(e.cut.line+1).padStart(2,'0'),W*.88,H*.75,'right');
+    return J.mainDraw(e,it);
+  }
+});
+// Internal neutral parts keep titles, gaps and transition joins in the Astra family.
+reg('layout','asInterlude',{name:'Astra・静かな間奏',special:true,tags:calm,ae:'center',plan:fontPlan,
+  render(e){const p=e.cut.params;if(!p.showTitle||e.lt<(p.titleDelay||0))return null;
+    const text=J.splitLines(p.titleText||e.cut.text||'',e.W<e.H?7:16);
+    const it=type(e,text,e.W*.5,e.H*.6,e.W*.76,e.H*.3);
+    it.alpha=E.outCubic(C((e.lt-(p.titleDelay||0))/.5));return J.mainDraw(e,it);}});
+reg('enter','asCut',{name:'Astra・即時表示',tags:calm.concat(bold),ae:'cut',w:.3,apply(){}});
+reg('exit','asCutExit',{name:'Astra・カットアウト',tags:calm.concat(bold),ae:'cut',w:.3,apply(e,it,p){it.alpha=(it.alpha??1)*(p<1?1:0);}});
+reg('hold','asStill',{name:'Astra・静止',tags:calm.concat(bold),ae:'still',w:2,apply(){}});
+reg('enter','asCascade',{name:'Astra・滝の整列',tags:bold.concat('editorial'),ae:'drop',apply(e,it,p){
+  it.charFns.push((i,g,n)=>{const q=C((p-.3*i/Math.max(1,n-1))/.7),k=E.outCubic(q);
+    return {dy:-it.size*.6*(1-k),rot:-5*(1-k),a:k};});}});
+reg('enter','asTrackingLock',{name:'Astra・字間の収束',tags:calm.concat('graphic'),ae:'stretch',apply(e,it,p){
+  const k=E.outCubic(p);it.alpha=(it.alpha??1)*k;
+  it.charFns.push((i,g,n)=>({dx:(i-(n-1)/2)*it.size*.055*(1-k),sy:.92+.08*k}));}});
+reg('enter','asRollPress',{name:'Astra・活版ローラー',tags:bold,ae:'wipe',apply(e,it,p){
+  it.alpha=(it.alpha??1)*E.outCubic(p);
+  it.charFns.push((i,g,n)=>{const q=C((p-.25*i/Math.max(1,n-1))/.75);return {clipX:[-.8,-.8+1.6*E.outCubic(q)]};});}});
+reg('exit','asLetterDrift',{name:'Astra・左右に散る余韻',tags:calm.concat('graphic'),ae:'drift',apply(e,it,p){
+  const k=E.inCubic(p);it.alpha=(it.alpha??1)*(1-k);
+  it.charFns.push((i,g,n)=>({dx:(i-(n-1)/2)*it.size*.07*k,dy:it.size*.1*k}));}});
+reg('exit','asVelvetFall',{name:'Astra・ベルベットの落幕',tags:calm,ae:'blur',apply(e,it,p){
+  const k=E.inCubic(p);it.y+=it.size*.22*k;it.alpha=(it.alpha??1)*(1-k);
+  if(e.allowFilter)it.blur=(it.blur||0)+it.size*.055*k;}});
+reg('hold','asBeatBreath',{name:'Astra・拍の呼吸',tags:bold.concat('emotional'),ae:'breathe',apply(e,it,amt){
+  const pulse=e.beat?Math.exp(-Math.max(0,e.beat.since)*9):(.5+.5*Math.sin(e.ltb*2));
+  const s=1+.014*pulse*amt*e.fx.motion;it.sx=(it.sx??1)*s;it.sy=(it.sy??1)*s;}});
+reg('decor','asCornerTicks',{name:'Astra・四隅のトンボ',tags:calm.concat(bold),ae:'brackets',layer:'front',subtle:true,
+  draw(e,bb){const b=J.centerBB(e,bb),m=min(e),gap=m*.025,len=m*.032,a=alive(e);
+    for(const sx of [-1,1])for(const sy of [-1,1]){const x=C((sx<0?b.x0:b.x1)+sx*gap,e.W*.06,e.W*.94),y=C((sy<0?b.y0:b.y1)+sy*gap,e.H*.06,e.H*.94);
+      e.line([[x-sx*len*a,y],[x,y],[x,y-sy*len*a]],e.sc.accent,m*.0015,a,false);}}});
+reg('decor','asOrbitDots',{name:'Astra・余白の衛星',tags:calm.concat('graphic'),ae:'dots',layer:'back',subtle:true,
+  draw(e,bb,P){const a=alive(e),m=min(e);for(let i=0;i<5;i++){
+    const t=e.ltb*.14+i*J.TAU/5+P.r,x=e.W*.5+Math.cos(t)*e.W*.4,y=e.H*.5+Math.sin(t)*e.H*.4;
+    e.circle(x,y,m*(i===0?.004:.002),e.sc.sub,null,0,a*.45,false);}}});
+reg('decor','asSideMeter',{name:'Astra・余白の拍目盛り',tags:bold.concat('editorial'),ae:'bars',layer:'front',subtle:true,
+  draw(e){const a=alive(e),m=min(e),pulse=e.beat?Math.exp(-Math.max(0,e.beat.since)*7):.25;
+    for(let i=0;i<7;i++)e.rect(e.W*.045,e.H*(.42+i*.025),m*(i===3?.024+.018*pulse:.012),m*.0015,e.sc.sub,a*.65,false);}});
+reg('bg','asSoftField',{name:'Astra・淡い光の層',tags:calm,subtle:true,
+  draw(e){const x=e.ctx,g=x.createRadialGradient(e.W*.65,e.H*.3,0,e.W*.5,e.H*.5,Math.max(e.W,e.H)*.8);
+    g.addColorStop(0,J.rgba(e.sc.accent,.08));g.addColorStop(1,J.rgba(e.sc.bg,0));x.save();x.fillStyle=g;x.fillRect(0,0,e.W,e.H);x.restore();}});
+reg('bg','asContourField',{name:'Astra・静かな等高線',tags:calm.concat('graphic'),subtle:true,
+  draw(e){const x=e.ctx;x.save();x.strokeStyle=e.sc.sub;x.globalAlpha*=.07;x.lineWidth=min(e)*.001;
+    for(let i=0;i<7;i++){x.beginPath();x.ellipse(e.W*.9,e.H*.12,e.W*(.19+i*.08),e.H*(.14+i*.06),.2,0,J.TAU);x.stroke();}x.restore();}});
+reg('cam','asDolly',{name:'Astra・静かなドリー',tags:calm.concat(bold),get:e=>({s:1+.035*E.inOutSine(C(e.lt/Math.max(.1,e.cut.dur)))*e.fx.motion})});
+reg('cam','asLateral',{name:'Astra・横の視差',tags:calm.concat('graphic'),get:e=>({x:Math.sin(C(e.lt/Math.max(.1,e.cut.dur))*Math.PI)*e.W*.012*e.fx.motion,s:1.015})});
+reg('treat','asFineShadow',{name:'Astra・活字の薄影',tags:calm.concat(bold),safe:true,apply(e,it){if(it.fill===false)return;
+  it.shadow={color:J.rgba(e.sc.bg,.7),blur:it.size*.025,dx:0,dy:it.size*.018};}});
+reg('trans','asSoftCut',{name:'Astra・柔らかな切り替え',tags:calm,dur:.32,
+  draw(ctx,A,B,p,info){ctx.save();ctx.drawImage(A,0,0);ctx.globalAlpha=E.inOutSine(p);ctx.drawImage(B,0,0);ctx.restore();}});
+reg('trans','asSplitGate',{name:'Astra・中央の扉',tags:bold.concat('editorial'),dur:.38,
+  draw(ctx,A,B,p,info){const k=E.inOutCubic(p),w=info.cw,h=info.ch;ctx.save();ctx.drawImage(A,0,0);
+    ctx.beginPath();ctx.rect(w*(1-k)/2,0,w*k,h);ctx.clip();ctx.drawImage(B,0,0);ctx.restore();}});
+})();
+
+/* Astra instrumental endings: one coherent full-frame composition per ending. */
+(() => {
+'use strict';
+const C=J.clamp,E=J.E,TAU=J.TAU;
+const specs=[
+  ['asHaloEnd','光の輪','HALO','hold',.025,.20],
+  ['asTunnelEnd','消失点トンネル','VANISHING POINT','cycle',.07,.25],
+  ['asHorizonEnd','音の水平線','HORIZON','hold',.015,.22],
+  ['asOrbitEnd','軌道の粒子','ORBIT','hold',.035,.20],
+  ['asPrismEnd','プリズムの余光','PRISM','cycle',.04,.25],
+  ['asShutterEnd','絞り幕','IRIS','hold',.02,.20],
+];
+J.ASTRA_OUTRO_IDS=specs.map(s=>s[0]);
+function stroke(ctx,points,color,width,alpha,closed=false){
+  if(!points.length||alpha<=0)return;
+  ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();
+  points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+  if(closed)ctx.closePath();ctx.stroke();
+}
+function ring(ctx,x,y,rx,ry,rot,col,lw,a){
+  if(rx<=0||ry<=0||a<=0)return;
+  ctx.globalAlpha=a;ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.beginPath();ctx.ellipse(x,y,rx,ry,rot,0,TAU);ctx.stroke();
+}
+function render(e,id){
+  if(e.pass!=='main')return null;
+  const {ctx:x,W,H,sc,cut}=e,m=Math.min(W,H),u=C(e.lt/Math.max(.01,cut.dur));
+  const fadeIn=E.outCubic(C(e.lt/Math.min(.65,cut.dur*.25)));
+  const fadeOut=1-E.inCubic(C((e.lt-(cut.dur-Math.min(.85,cut.dur*.27)))/Math.min(.85,cut.dur*.27)));
+  const a=fadeIn*fadeOut,finish=J.smooth(.72,1,u),motion=C(e.fx.motion??.7);
+  const t=cut.dur*(u-.3*u*u)*(.35+.65*motion),pulse=e.beat?Math.exp(-Math.max(0,e.beat.since)*6):0;
+  const energy=C(e.energy??.3),r=m*.29*(1-.3*finish),cx=W*.5,cy=H*.48;
+  const accent=J.contrast(sc.accent,sc.bg)>2?sc.accent:sc.fg;
+  x.save();x.lineCap='round';x.lineJoin='round';
+  // Soft radial light works with a flat background or over the user's images.
+  const glow=x.createRadialGradient(cx,cy,0,cx,cy,m*.65);
+  glow.addColorStop(0,J.rgba(accent,.10));glow.addColorStop(1,J.rgba(accent,0));
+  x.globalAlpha=a;x.fillStyle=glow;x.fillRect(0,0,W,H);
+  if(id==='asHaloEnd'){
+    for(let i=0;i<4;i++){
+      const radius=r*(.79+i*.11+.018*pulse),start=t*.16*(i%2?-1:1)+i*.9;
+      x.globalAlpha=a*(i===1?.85:.24);x.strokeStyle=i===1?accent:sc.fg;x.lineWidth=m*(i===1?.0022:.0008);
+      x.beginPath();x.arc(cx,cy,radius,start,start+TAU*(.7-.1*finish));x.stroke();
+    }
+    for(let i=0;i<48;i++){const q=i*TAU/48,len=i%4===0?.017:.006;
+      stroke(x,[[cx+Math.cos(q)*r*1.22,cy+Math.sin(q)*r*1.22],[cx+Math.cos(q)*r*(1.22+len),cy+Math.sin(q)*r*(1.22+len)]],sc.fg,m*.001,a*.35);}
+    ring(x,cx,cy,m*.008*(1-finish),m*.008*(1-finish),0,accent,m*.0014,a);
+  }else if(id==='asTunnelEnd'){
+    for(let i=9;i>=0;i--){
+      const z=((i/10+t*.06)%1),s=.035+z*z*.66,rot=.1*Math.sin(t*.3)+(.5-z)*.12;
+      const pts=[];for(let k=0;k<8;k++){const q=k*TAU/8+Math.PI/8+rot;
+        pts.push([cx+Math.cos(q)*W*s*(1-.65*finish),cy+Math.sin(q)*H*s*(1-.65*finish)]);}
+      stroke(x,pts,i%3===0?accent:sc.fg,m*(i%3===0?.0018:.0008),a*Math.sin(z*Math.PI)*.55,true);
+    }
+  }else if(id==='asHorizonEnd'){
+    const amp=(.035+.11*energy+.035*pulse)*m*(1-finish),width=W*.78;
+    for(let band=0;band<4;band++){
+      const pts=[];for(let i=0;i<=100;i++){const q=i/100,win=Math.pow(Math.sin(q*Math.PI),2);
+        const y=cy+Math.sin(q*TAU*(2+band*.25)-t*(.9+band*.13))*amp*win*(1-band*.16);
+        pts.push([cx+(q-.5)*width,y]);}
+      stroke(x,pts,band===0?accent:sc.fg,m*(band===0?.002:.001),a*(band===0?.85:.18));
+    }
+    stroke(x,[[W*.11,cy],[W*.89,cy]],sc.fg,m*.0008,a*.2);
+    for(let i=0;i<27;i++){const q=i/26,hh=m*(.009+Math.sin(q*Math.PI)*(.014+.035*energy))*(1-finish);
+      stroke(x,[[W*(.15+.7*q),H*.76-hh],[W*(.15+.7*q),H*.76+hh]],sc.sub,m*.001,a*.45);}
+  }else if(id==='asOrbitEnd'){
+    for(let i=0;i<3;i++)ring(x,cx,cy,r*(1+i*.13),r*(.35+i*.09),i*Math.PI/3+t*.07,sc.sub,m*.001,a*.35);
+    const dots=[];for(let i=0;i<54;i++){
+      const q=i*2.399963+t*(.1+(i%3)*.035),depth=Math.sin(q*.7+i),rad=r*(.6+.6*J.r(cut.seed,i))*(1-.5*finish);
+      dots.push({x:cx+Math.cos(q)*rad,y:cy+Math.sin(q)*rad*.72,z:depth});
+    }
+    dots.sort((a,b)=>a.z-b.z);for(const d of dots){
+      const sz=m*(.0018+(d.z+1)*.0018);x.globalAlpha=a*(.25+(d.z+1)*.25);x.fillStyle=d.z>.45?accent:sc.fg;
+      x.beginPath();x.arc(d.x,d.y,sz,0,TAU);x.fill();}
+  }else if(id==='asPrismEnd'){
+    const rr=r*(1+.025*pulse);
+    for(let i=3;i>=0;i--){const rot=-Math.PI/2+t*.035+i*.12*(1-finish),pts=[];
+      for(let j=0;j<3;j++){const q=rot+j*TAU/3;pts.push([cx+Math.cos(q)*rr*(1+i*.12),cy+Math.sin(q)*rr*(1+i*.12)]);}
+      stroke(x,pts,i===0?accent:sc.fg,m*(i===0?.002:.0009),a*(i===0?.9:.2),true);
+    }
+    stroke(x,[[W*.07,cy+r*.2],[cx-r*.6,cy]],sc.fg,m*.0012,a*.65);
+    for(let i=0;i<5;i++)stroke(x,[[cx+r*.5,cy],[W*.93,cy+(i-2)*m*.055*(1-finish)]],i%2?sc.fg:accent,m*.001,a*(.5-i*.05));
+  }else{
+    const close=E.inOutCubic(J.smooth(.66,1,u)),radius=r*(1-.93*close);
+    for(let i=0;i<8;i++){
+      const q=i*TAU/8+t*.04,pts=[];
+      for(const [rad,ang] of [[radius,q],[radius*1.15,q+.6],[m*.85,q+.6],[m*.85,q]])pts.push([cx+Math.cos(ang)*rad,cy+Math.sin(ang)*rad]);
+      x.globalAlpha=a*.065;x.fillStyle=accent;x.beginPath();pts.forEach((p,j)=>j?x.lineTo(...p):x.moveTo(...p));x.closePath();x.fill();
+      stroke(x,pts.slice(0,3),i%2?sc.sub:accent,m*.0013,a*.5);
+    }
+    ring(x,cx,cy,radius,radius,0,sc.fg,m*.001,a*.45);
+  }
+  x.restore();
+  // Titles are explicitly optional; instrumental endings have no text by default.
+  if(cut.params.showTitle&&cut.params.titleText){
+    const text=J.splitLines(cut.params.titleText,W<H?12:24),font=e.st.fonts.serif[0];
+    const size=Math.min(m*.043,J.fitSize(text,font,W*.7,H*.12,{track:.12,lead:1.2}));
+    e.draw({text,font,size,x:cx,y:H*.88,track:.12,lead:1.2,color:sc.fg,
+      alpha:a*E.outCubic(C((u-.52)/.22)),ghost:false});
+  }
+  return null;
+}
+J.register('cam','asOutroLocked',{name:'Astra・曲末の固定カメラ',set:'astra',special:true,get:()=>({s:1})},'astra');
+for(const [id,name,en,photo,zoom,dim] of specs){
+  J.register('layout',id,{name:'Astra・'+name,set:'astra',special:true,ae:'center',tags:['calm','graphic','emotional'],
+    plan:()=>({}),render:e=>render(e,id)},'astra');
+  J.OUTRO_LOOKS[id]={name:'Astra・'+name,en:'Astra · '+en,set:'astra',layout:id,decor:[],count:0,
+    beat:'none',title:0,photo,slice:4.2,zoom,dim,drift:.3,cam:'asOutroLocked'};
+  J.OUTRO_IDS.push(id);
+}
 })();
 
 /* JIZURA pack: bgcamB — background graphics (gradients, wa / textile patterns, scenes, textures) + camera moves */
@@ -36342,6 +36632,120 @@ trReg('tyGridCells', {
 
 })();
 
+/* Editorial / cinematic typography. All geometry uses the design-space safe area. */
+(() => {
+'use strict';
+const E = J.E;
+const reg = (g, k, d) => J.register(g, k, Object.assign({set: 'astra'}, d), 'astra');
+const tags = ['calm', 'editorial', 'emotional', 'graphic'];
+const fade = e => E.outCubic(J.clamp(e.lt / .45)) * (1 - E.inCubic(e.pOut));
+const lines = (e) => J.splitLines(e.cut.text, e.W < e.H ? 5 : 11);
+const plan = (rng, cut, st) => ({font: rng.pick(J.fontsOf(st, ['serif', 'display'])), side: rng.chance(.5) ? 1 : -1});
+function item(e, extra) {
+  const text = lines(e), font = e.cut.params.font;
+  return Object.assign({text, font, size: J.fitSize(text, font, e.W * .76, e.H * .4, {lead: 1.25, track: .06}),
+    x: e.W / 2, y: e.H / 2, lead: 1.25, track: .06, color: e.sc.fg}, extra);
+}
+reg('layout', 'tyCinemaTitle', {
+  name: '余白のシネマタイトル', tags, ae: 'center', w: 1, fits: n => n <= 30, plan,
+  render(e) {
+    const {W, H, sc} = e, a = fade(e), m = Math.min(W, H);
+    const it = item(e); it.size *= .78;
+    const w = W * .19 * E.outExpo(J.clamp(e.lt / .6));
+    e.line([[W / 2 - w / 2, H * .27], [W / 2 + w / 2, H * .27]], sc.accent, m * .002, a, false);
+    e.line([[W / 2 - w / 2, H * .73], [W / 2 + w / 2, H * .73]], sc.sub, m * .001, a * .6, false);
+    return J.mainDraw(e, it);
+  }
+});
+reg('layout', 'tyMarginPress', {
+  name: '余白のエディトリアル', tags, ae: 'center', w: 1, fits: n => n <= 30, plan,
+  render(e) {
+    const {W, H, sc} = e, a = fade(e), side = e.cut.params.side;
+    const it = item(e, {x: W * (side > 0 ? .12 : .88), y: H * .52, align: side > 0 ? 'left' : 'right'});
+    it.size *= .9;
+    const x = W * (side > 0 ? .08 : .92);
+    e.line([[x, H * .25], [x, H * (.25 + .5 * a)]], sc.accent, Math.min(W, H) * .003, a, false);
+    e.draw({text: String(e.cut.line + 1).padStart(2, '0'), font: 'mono', size: Math.min(W, H) * .028,
+      x: it.x, y: H * .19, align: it.align, color: sc.sub, alpha: a, ghost: false});
+    return J.mainDraw(e, it);
+  }
+});
+reg('layout', 'tyDepthPrint', {
+  name: '奥行きの残像活字', tags: ['graphic', 'emotional', 'glitch'], ae: 'stack', w: .8, fits: n => n <= 24, plan,
+  render(e) {
+    const it = item(e), a = fade(e), m = Math.min(e.W, e.H);
+    it.size *= .87;
+    for (let i = 3; i > 0; i--) e.draw(Object.assign({}, it, {
+      x: it.x + i * m * .018 * e.cut.params.side, y: it.y - i * m * .028,
+      fill: false, stroke: Math.max(1, m * .0012), color: e.sc.sub,
+      alpha: a * .13 * (4 - i), ghost: false}));
+    return J.mainDraw(e, it);
+  }
+});
+reg('layout', 'tyGalleryCaption', {
+  name: 'ギャラリーの余韻', tags, ae: 'center', w: .9, fits: n => n <= 30, plan,
+  render(e) {
+    const {W, H, sc} = e, a = fade(e), it = item(e, {x: W * .12, y: H * .72, align: 'left'});
+    it.size = Math.min(it.size * .65, J.fitSize(it.text, it.font, W * .76, H * .26, it));
+    e.line([[W * .12, H * .52], [W * (.12 + .13 * a), H * .52]], sc.accent, Math.min(W, H) * .003, a, false);
+    return J.mainDraw(e, it);
+  }
+});
+reg('enter', 'tySilkRise', {
+  name: '一字ずつ絹の浮上', tags, ae: 'blur', w: 1, minDur: .5,
+  apply(e, it, p) {
+    it.charFns.push((i, g, n) => {
+      const q = J.clamp((p - .35 * i / Math.max(1, n - 1)) / .65), k = E.outCubic(q);
+      return {dy: it.size * .32 * (1 - k), a: k, blur: e.allowFilter ? (1 - k) * it.size * .045 : 0};
+    });
+  }
+});
+reg('enter', 'tyApertureType', {
+  name: '中央から開く活字', tags, ae: 'blur', w: .8,
+  apply(e, it, p) {
+    const k = E.inOutCubic(p);
+    it.alpha = (it.alpha ?? 1) * E.outCubic(p);
+    it.charFns.push(() => ({clipY: [-.75 * k, .75 * k], sy: .94 + .06 * k}));
+  }
+});
+reg('enter', 'tyFocusSettle', {
+  name: 'ピントが合う文字', tags, ae: 'blur', w: .9,
+  apply(e, it, p) {
+    const k = E.outCubic(p);
+    it.alpha = (it.alpha ?? 1) * k;
+    it.sx = (it.sx ?? 1) * (1.08 - .08 * k);
+    it.sy = (it.sy ?? 1) * (1.08 - .08 * k);
+    if (e.allowFilter) it.blur = (it.blur || 0) + it.size * .09 * (1 - k);
+  }
+});
+reg('exit', 'tyWaterRelease', {
+  name: '水にほどける文字', tags, ae: 'blur', w: 1,
+  apply(e, it, p) {
+    it.charFns.push((i, g, n) => {
+      const q = J.clamp((p - .25 * i / Math.max(1, n - 1)) / .75), k = E.inCubic(q);
+      return {dy: -it.size * .55 * k, dx: Math.sin(i * 1.7) * it.size * .12 * k,
+        rot: Math.sin(i * 2.1) * 7 * k, a: 1 - q, blur: e.allowFilter ? it.size * .06 * k : 0};
+    });
+  }
+});
+reg('exit', 'tyClosePrint', {
+  name: '活字の静かな閉幕', tags, ae: 'blur', w: .8,
+  apply(e, it, p) {
+    const k = E.inOutCubic(p);
+    it.alpha = (it.alpha ?? 1) * (1 - k);
+    it.charFns.push(() => ({clipY: [-.75 * (1 - k), .75 * (1 - k)]}));
+  }
+});
+reg('hold', 'tySlowFloat', {
+  name: '静かな浮遊活字', tags, ae: 'drift', w: .7,
+  apply(e, it, amt) {
+    const k = amt * e.fx.motion;
+    it.y += Math.sin(e.ltb * 1.4) * it.size * .012 * k;
+    it.rot = (it.rot || 0) + Math.sin(e.ltb * .8) * .25 * k;
+  }
+});
+})();
+
 /* ============================================================
    JIZURA — which entries random picks may use
    1) 追加分 (extra): everything added after the first public
@@ -36351,13 +36755,16 @@ trReg('tyGridCells', {
    2) 和風 (wa): entries built around a traditional Japanese object,
       pattern or motif. Applied after (1): with project.wa === false
       they are never picked at random.
-   A line can still be set to any entry by hand (per-line override).
+   A line can still be set to any entry by hand (per-line override),
+   except in Astra-only mode, where the final plan must stay in that library.
    3) Part sets with their own switch (not 追加分): ホラー (horror,
       off by default), 文字PV系 (typo) and キネティック (kinetic),
       both on by default. Entries carry `set: '<name>'` (or come
       from a pack of that name).
    Pack authors: packs not listed in J.BASE_PACKS count as 追加分;
    add Japanese-motif keys to J.WA (or set `wa: true` on the def).
+   4) Astra is opt-in. `base` controls original untagged parts (default on).
+      Only Astra checked means all other library switches are off.
    ============================================================ */
 (() => {
 'use strict';
@@ -36373,7 +36780,7 @@ J.WA = {
   treat: ['monoGrid'],
   style: ['sakura', 'sumi'],
 };
-J.SETS = { horror: { on: false }, typo: { on: true }, kinetic: { on: true } };   // on = default (UI labels live in 12_ui.js)
+J.SETS = { horror: { on: false }, typo: { on: true }, kinetic: { on: true }, astra: { on: false } };   // on = default (UI labels live in 12_ui.js)
 J.SET_ORDER = Object.keys(J.SETS);
 /* is this part set switched on in the project? (old projects without the flag get the default) */
 J.setOn = (project, set) => { const v = project && project[set]; return typeof v === 'boolean' ? v : !!(J.SETS[set] && J.SETS[set].on); };
@@ -36389,13 +36796,99 @@ for (const [g, keys] of Object.entries(J.WA)) for (const k of keys) { const d = 
 J.isWa = (g, k) => { const d = def(g, k); return !!(d && d.wa); };
 J.isExtra = (g, k) => { const d = def(g, k); return !!(d && d.extra); };
 J.setOf = (g, k) => { const d = def(g, k); return (d && d.set) || null; };
+J.astraOnly = p => !!(p && p.astra === true && p.base === false && !p.extra && p.wa === false
+  && J.SET_ORDER.every(s => s === 'astra' || !J.setOn(p, s)));
 /* may random picks use this entry? (g: a group key, 'style' or 'font') — 追加分 first, then 和風 */
 J.randomOk = (project, g, k) => {
   const d = def(g, k); if (!d) return false;
+  // Styles and fonts remain shared materials; these switches select expression parts.
+  if (J.GROUP_KEYS.includes(g)) {
+    if (J.astraOnly(project)) return d.set === 'astra';
+    if (!d.set && !d.extra && !d.wa && project && project.base === false) return false;
+  }
   if (d.extra && !(project && project.extra === true)) return false;
   if (d.wa && project && project.wa === false) return false;
   if (d.set && !J.setOn(project, d.set)) return false;
   return true;
+};
+})();
+
+/* Final plan boundary: exclusive Astra mode also covers saved overrides, locks and core fallbacks.
+   The saved project is never mutated; switching the other libraries back on restores its choices. */
+(() => {
+'use strict';
+J.enforceAstraPlan = (plan, project) => {
+  const isAstra = (g,k) => !!(J.registry(g)[k] && J.registry(g)[k].set === 'astra');
+  const neutral = (g,k) => k === 'none' && ['treat','bg'].includes(g);
+  const apply = c => {
+    const rng=J.rng(J.h(c.seed,98731)), W=c.zone?c.zone.w:plan.W,H=c.zone?c.zone.h:plan.H;
+    const n=J.glyphCount(c.text||'');
+    const choose = (g, fallback) => {
+      const pool=J.order(g).filter(k=>isAstra(g,k)&&!J.registry(g)[k].special
+        &&((project.enabled||{})[g]||{})[k]!==false
+        &&(g!=='layout'||!J.LAYOUTS[k].fits||J.LAYOUTS[k].fits(n)));
+      return pool.length?rng.pick(pool):fallback;
+    };
+    if(c.layout==='interlude') {
+      c.layout='asInterlude';c.params=Object.assign({},c.params,{font:plan.style.fonts.serif[0]});
+    } else if(!isAstra('layout',c.layout)) {
+      c.layout=choose('layout','asMonument');
+      c.params=J.LAYOUTS[c.layout].plan(rng,{text:c.text,n,W,H,dur:c.dur},plan.style);
+    }
+    for(const [g,fallback] of [['enter','asCut'],['exit','asCutExit'],['hold','asStill'],['cam','asDolly']]) {
+      if(isAstra(g,c[g]))continue;
+      // A transition join has no separate entrance / exit animation.
+      c[g]=(g==='enter'&&c[g]==='cut')?'asCut':(g==='exit'&&c[g]==='cut')?'asCutExit':choose(g,fallback);
+      if(g==='cam')c.camP={};
+      if(g==='enter'&&c[g]!=='asCut')c.inDur=Math.min(.6,c.dur*.36);
+      if(g==='exit'&&c[g]!=='asCutExit')c.outDur=Math.min(.55,c.dur*.3);
+    }
+    c.decor=(c.decor||[]).filter(d=>isAstra('decor',d.id));
+    for(const g of ['treat','bg']) if(!isAstra(g,c[g])&&!neutral(g,c[g])){c[g]='none';c[g+'P']={};}
+    if(c.trans&&!isAstra('trans',c.trans)){c.trans=null;c.transP={};c.transDur=0;}
+    delete c.morph;delete c.weightGrow;
+    if(c.companion&&typeof c.companion==='object')apply(c.companion);
+  };
+  plan.cuts.forEach(apply);
+  plan.events=plan.events.filter(e=>isAstra('fx',e.type));
+  plan.hud=false;
+  return plan;
+};
+})();
+
+/* Shared ending controls for the main application and placement window. */
+(() => {
+'use strict';
+J.syncOutroControls = project => {
+  const ja=!document.documentElement.lang||document.documentElement.lang==='ja';
+  const name=id=>ja?J.OUTRO_LOOKS[id].name:(J.OUTRO_LOOKS[id].en||id);
+  const ids=J.outroOptions(project),current=J.outroIdFor(project);
+  document.querySelectorAll('.outro-select').forEach(el=>{
+    const value=project.outroId&&ids.includes(project.outroId)?project.outroId:'';
+    const signature=ids.join('|');
+    if(el.dataset.options!==signature){
+      el.replaceChildren();
+      const auto=document.createElement('option');auto.value='';auto.textContent=ja?'自動':'Auto';el.append(auto);
+      for(const id of ids){const option=document.createElement('option');option.value=id;option.textContent=name(id);el.append(option);}
+      el.dataset.options=signature;
+    }
+    el.value=value;
+  });
+  document.querySelectorAll('.outro-title').forEach(el=>{el.checked=project.outroTitle===true;el.disabled=!J.OUTRO_LOOKS[current]?.layout;});
+  document.querySelectorAll('.outro-note').forEach(el=>{el.textContent=ja
+    ?(project.astra===true?'選択中：'+name(current):'新しい6種類は「Astra生成部品」をオンにすると選べます。')+' 最後の歌詞のあとに音声が残る区間で使います。'
+    :(project.astra===true?'Selected: '+name(current):'Enable Astra-generated parts for the six new endings.')+' Used when audio continues after the final lyric.';});
+};
+J.bindOutroControls = (getter,change) => {
+  const bind=(selector,update)=>document.querySelectorAll(selector).forEach(el=>el.addEventListener('change',()=>{
+    const p=getter();update(p,el);J.syncOutroControls(p);change();
+  }));
+  bind('.outro-select',(p,el)=>{p.outroId=el.value;});
+  bind('.outro-title',(p,el)=>{p.outroTitle=el.checked;});
+  document.querySelectorAll('.outro-roll').forEach(el=>el.addEventListener('click',()=>{
+    const p=getter();J.outroReshuffle(p);J.syncOutroControls(p);change();
+  }));
+  J.syncOutroControls(getter());
 };
 })();
 
@@ -36405,6 +36898,10 @@ J.randomOk = (project, g, k) => {
   'use strict';
   const titles = {
     layout: {
+      asMonument: 'Astra · Monument', asDiptych: 'Astra · Diptych', asSpine: 'Astra · Vertical spine',
+      asPassepartout: 'Astra · Framed type', asStaircase: 'Astra · Rhythmic steps', asHorizon: 'Astra · Horizon poem',
+      tyCinemaTitle: 'Cinema title', tyMarginPress: 'Editorial margin',
+      tyDepthPrint: 'Depth echo type', tyGalleryCaption: 'Gallery caption',
       vcols: 'Vertical text', marquee: 'Scrolling banner', tile: 'Tiled text',
       huge: 'Oversized text', gloss: 'Annotation', diag: 'Diagonal band',
       stack: 'Echo stack', lowerThird: 'Lower third', corners: 'Opposite corners',
@@ -36433,6 +36930,8 @@ J.randomOk = (project, g, k) => {
       halftoneBig: 'Oversized halftone text'
     },
     enter: {
+      asCut: 'Astra · Instant', asCascade: 'Astra · Cascade', asTrackingLock: 'Astra · Tracking lock', asRollPress: 'Astra · Letterpress reveal',
+      tySilkRise: 'Silk rise', tyApertureType: 'Type aperture', tyFocusSettle: 'Focus settle',
       assemble: 'Break apart and assemble', riseMask: 'Reveal from below',
       dropMask: 'Reveal from above', slideL: 'Slide from left', slideR: 'Slide from right',
       slideWhole: 'Slide in together', flipX: 'Flip on vertical axis',
@@ -36456,6 +36955,8 @@ J.randomOk = (project, g, k) => {
       shadowFirst: 'Shadow first', tokoroten: 'Extruded noodles'
     },
     hold: {
+      asStill: 'Astra · Still', asBeatBreath: 'Astra · Beat breath',
+      tySlowFloat: 'Quiet float',
       still: 'Still', breathe: 'Breathe', glitchtick: 'Glitch tick',
       colorRun: 'Traveling color', trackBreathe: 'Breathing letter spacing',
       beatHop: 'Hop to the beat', hWave: 'Horizontal wave',
@@ -36470,6 +36971,8 @@ J.randomOk = (project, g, k) => {
       pluckString: 'Plucked string'
     },
     exit: {
+      asCutExit: 'Astra · Cut out', asLetterDrift: 'Astra · Letter drift', asVelvetFall: 'Astra · Velvet fall',
+      tyWaterRelease: 'Water release', tyClosePrint: 'Quiet closing',
       fall: 'Crumble and fall', drift: 'Drift away', sinkMask: 'Sink out',
       riseOut: 'Rise out', slideOutL: 'Slide left', slideOutR: 'Slide right',
       flipOutX: 'Doors close', flipOutY: 'Flip down',
@@ -36498,6 +37001,7 @@ J.randomOk = (project, g, k) => {
       scribbleOut: 'Scribble away', candleOut: 'Blow out'
     },
     decor: {
+      asCornerTicks: 'Astra · Corner ticks', asOrbitDots: 'Astra · Orbit dots', asSideMeter: 'Astra · Beat ruler',
       brackets: 'Corner marks', rings: 'Coordinate rings', dots: 'Dotted ring',
       leaders: 'Leader lines', blobs: 'Ink stains', bars: 'Rough bands',
       counter: 'Large numbers', cropMarks: 'Crop marks',
@@ -36522,6 +37026,7 @@ J.randomOk = (project, g, k) => {
       likeCounter: 'Like counter', mediaControls: 'Playback controls'
     },
     treat: {
+      asFineShadow: 'Astra · Fine shadow',
       none: 'None', outline: 'Hollow letters', outlineFill: 'Outlined text',
       doubleOutline: 'Double outline', extrude: 'Extruded text',
       marker: 'Marker highlight', strike: 'Strikethrough',
@@ -36542,6 +37047,7 @@ J.randomOk = (project, g, k) => {
       spotChar: 'Highlighted character', ransom: 'Cutout letters'
     },
     bg: {
+      asSoftField: 'Astra · Soft light', asContourField: 'Astra · Quiet contours',
       none: 'Solid color', seigaiha: 'Seigaiha waves',
       asanoha: 'Asanoha pattern', topoLines: 'Contour lines',
       ridgePlot: 'Mountain ridges', nightMoon: 'Moonlit night',
@@ -36555,6 +37061,7 @@ J.randomOk = (project, g, k) => {
       letterbox: 'Cinema letterbox', noiseField: 'Moving noise'
     },
     cam: {
+      asDolly: 'Astra · Gentle dolly', asLateral: 'Astra · Lateral parallax',
       push: 'Slow push in', rackFocus: 'Rack focus',
       floatNoise: 'Floating camera', vertigo: 'Dolly zoom',
       spiralIn: 'Spiral zoom', jelly: 'Elastic wobble',
@@ -36580,6 +37087,7 @@ J.randomOk = (project, g, k) => {
       crtOff: 'CRT powers off'
     },
     trans: {
+      asSoftCut: 'Astra · Soft cut', asSplitGate: 'Astra · Centre gate',
       wipe: 'Edge wipe', diagonalWipe: 'Diagonal band wipe',
       irisOpen: 'Iris opens', pushSlide: 'Push',
       doorsOpen: 'Double doors', checker: 'Checkerboard',
@@ -37063,7 +37571,7 @@ function mergeProject(p) {
   delete o.character; delete o.characterName;
   return o;
 }
-const SET_UI = { horror: { name: '恐怖', badge: '恐' }, typo: { name: '文字排版', badge: '文' }, kinetic: { name: '動態文字', badge: '動' } };
+const SET_UI = { horror: { name: '恐怖', badge: '恐' }, typo: { name: '文字排版', badge: '文' }, kinetic: { name: '動態文字', badge: '動' }, astra: { name: 'Astra', badge: 'Astra' } };
 function setBadges(d) {
   return (d && d.extra ? '<span class="set-badge ex" title="首次公開版之後新增">新增</span>' : '') + (d && d.wa ? '<span class="set-badge" title="和風效果">和</span>' : '')
     + (d && d.set && SET_UI[d.set] ? `<span class="set-badge set-${d.set}" title="${SET_UI[d.set].name}">${SET_UI[d.set].badge}</span>` : '');
@@ -37112,6 +37620,7 @@ function langNote() {
   langNote.last = J.lang;
 }
 function replan() {
+  if (J.syncOutroControls) J.syncOutroControls(S.project);
   S.plan = J.plan(S.project, audioLike());
   // lines locked in older projects (seed only): take a snapshot now, so from here on they stay exactly as they are
   for (const [i, o] of Object.entries(S.project.overrides || {})) if (o && o.lock && !Array.isArray(o.lockedCuts)) { const snap = J.lineSnapshot(S.plan, +i); if (snap) o.lockedCuts = snap; }
@@ -37436,7 +37945,7 @@ function pickEnabledTech(g, opts) {
     if (en[key] === false) return false;
     return !J.randomOk || J.randomOk(S.project, g, key);
   });
-  if (!keys.length) keys = J.order(g).filter(key => tbl[key] && !tbl[key].special && en[key] !== false);
+  if (!keys.length && !J.astraOnly(S.project)) keys = J.order(g).filter(key => tbl[key] && !tbl[key].special && en[key] !== false);
   if (g === 'layout' && opts.n != null) {
     const fit = keys.filter(key => !J.LAYOUTS[key].fits || J.LAYOUTS[key].fits(opts.n));
     if (fit.length) keys = fit;
@@ -38481,10 +38990,15 @@ function bindEditor() {
   document.querySelectorAll('.open-editor').forEach(b => b.addEventListener('click', openEditor));
   let ch; try { ch = new BroadcastChannel('jizura'); } catch (e) { ch = null; }
   if (ch) ch.onmessage = (e) => {
-    if (!e.data || e.data.type !== 'clips') return;
+    if (!e.data || !['clips','outro'].includes(e.data.type)) return;
     try {
       const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
       const latest = mergeProject(raw);
+      if (e.data.type === 'outro') {
+        S.project.outroId = latest.outroId;
+        S.project.outroTitle = latest.outroTitle;
+        replan(); return;
+      }
       S.project.cutEdits = latest.cutEdits;
       if (S.project.autoimg && latest.autoimg && S.project.autoimg.seed === latest.autoimg.seed) {
         S.project.autoimg.shots = latest.autoimg.shots;
@@ -38505,6 +39019,7 @@ function syncUI() {
   $('snap').checked = !!S.project.timing.snap;
   document.querySelectorAll('.wa-toggle').forEach(el => { el.checked = S.project.wa !== false; });
   document.querySelectorAll('.extra-toggle').forEach(el => { el.checked = S.project.extra === true; });
+  document.querySelectorAll('.base-toggle').forEach(el => { el.checked = S.project.base !== false; });
   for (const set of J.SET_ORDER) document.querySelectorAll('.' + set + '-toggle').forEach(el => { el.checked = J.setOn(S.project, set); });
   document.querySelectorAll('.unify-toggle').forEach(el => { el.checked = S.project.unify === true; });
   document.querySelectorAll('.typeset-toggle').forEach(el => { el.checked = S.project.typeset === true; });
@@ -38597,6 +39112,8 @@ function bind() {
   }));
   setSwitch('extra-toggle', 'extra', true, '新增效果：使用', '新增效果：不使用（只用首次公開版的效果）');
   setSwitch('wa-toggle', 'wa', true, '和風效果：使用', '和風效果：不使用（隨機生成與重新排列不會選用）');
+  setSwitch('base-toggle', 'base', true, 'Base parts: on', 'Base parts: off');
+  setSwitch('astra-toggle', 'astra', false, 'Astra parts: on', 'Astra parts: off');
   setSwitch('typo-toggle', 'typo', true, '文字排版部件：使用', '文字排版部件：不使用（隨機生成與洗牌不會選用）');
   setSwitch('kinetic-toggle', 'kinetic', true, '動態文字部件：使用', '動態文字部件：不使用（隨機生成與洗牌不會選用）');
   setSwitch('horror-toggle', 'horror', true, '恐怖特效：使用（隨機生成的氛圍會加入「恐怖」）', '恐怖特效：不使用');
@@ -38825,6 +39342,7 @@ function boot() {
   if (J.loadSong && S.project.audioName) J.loadSong().then(f => { if (f && f.name === S.project.audioName && !S.audio) loadAudioFile(f, true); });
   loadProjectClips();
   if (J.autoimgBind) J.autoimgBind(() => S.project, () => { replan(); flushSave(); });   // AUTOIMG
+  if (J.bindOutroControls) J.bindOutroControls(() => S.project, () => { replan(); commit(); flushSave(); });
   if (J.autoimgRestore) J.autoimgRestore(S.project).then(() => { S.need = true; });   // AUTOIMG
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

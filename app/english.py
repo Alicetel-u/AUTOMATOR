@@ -527,3 +527,9 @@ def localize_js(source, filename):
     if filename.endswith('11_export.js'):
         return replace_copy(source, EXPORT)
     return source
+
+# Astra expression library controls.
+BODY.update({'基本の部品を使う': 'Use base parts', '最初の公開版の基本演出。Astraだけを使う場合はオフにします': 'Original effects. Turn off to use only Astra parts.', 'Astra生成部品を使う': 'Use Astra-generated parts', 'Astraが作った字組み・動き・装飾。演出のチェックをこれだけにするとAstra部品のみ使用（行指定・ロックも対象）。配色・書体は共通です': 'Type, motion and decor created by Astra. Select only this effects checkbox for Astra-only output, including line overrides and locks. Palettes and fonts remain shared.'})
+UI.update({'Astra生成部品': 'Astra', '基本の部品：使う': 'Base parts: on', '基本の部品：使わない': 'Base parts: off', 'Astra生成部品：使う': 'Astra parts: on', 'Astra生成部品：使わない': 'Astra parts: off'})
+
+BODY.update({'曲末の演出': 'Ending effect', '別の終わり方': 'Another ending', '最後に曲名を表示': 'Show title at the end'})

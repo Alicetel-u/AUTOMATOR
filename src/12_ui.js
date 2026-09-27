@@ -192,7 +192,7 @@ function mergeProject(p) {
   delete o.character; delete o.characterName;
   return o;
 }
-const SET_UI = { horror: { name: 'ホラー', badge: 'ホ' }, typo: { name: '文字PV系', badge: '文' }, kinetic: { name: 'キネティック', badge: 'キ' } };
+const SET_UI = { horror: { name: 'ホラー', badge: 'ホ' }, typo: { name: '文字PV系', badge: '文' }, kinetic: { name: 'キネティック', badge: 'キ' }, astra: { name: 'Astra生成部品', badge: 'Astra' } };
 function setBadges(d) {
   return (d && d.extra ? '<span class="set-badge ex" title="最初の公開版のあとに追加">追加</span>' : '') + (d && d.wa ? '<span class="set-badge" title="和風の演出">和</span>' : '')
     + (d && d.set && SET_UI[d.set] ? `<span class="set-badge set-${d.set}" title="${SET_UI[d.set].name}">${SET_UI[d.set].badge}</span>` : '');
@@ -241,6 +241,7 @@ function langNote() {
   langNote.last = J.lang;
 }
 function replan() {
+  if (J.syncOutroControls) J.syncOutroControls(S.project);
   S.plan = J.plan(S.project, audioLike());
   // lines locked in older projects (seed only): take a snapshot now, so from here on they stay exactly as they are
   for (const [i, o] of Object.entries(S.project.overrides || {})) if (o && o.lock && !Array.isArray(o.lockedCuts)) { const snap = J.lineSnapshot(S.plan, +i); if (snap) o.lockedCuts = snap; }
@@ -565,7 +566,7 @@ function pickEnabledTech(g, opts) {
     if (en[key] === false) return false;
     return !J.randomOk || J.randomOk(S.project, g, key);
   });
-  if (!keys.length) keys = J.order(g).filter(key => tbl[key] && !tbl[key].special && en[key] !== false);
+  if (!keys.length && !J.astraOnly(S.project)) keys = J.order(g).filter(key => tbl[key] && !tbl[key].special && en[key] !== false);
   if (g === 'layout' && opts.n != null) {
     const fit = keys.filter(key => !J.LAYOUTS[key].fits || J.LAYOUTS[key].fits(opts.n));
     if (fit.length) keys = fit;
@@ -1610,10 +1611,15 @@ function bindEditor() {
   document.querySelectorAll('.open-editor').forEach(b => b.addEventListener('click', openEditor));
   let ch; try { ch = new BroadcastChannel('jizura'); } catch (e) { ch = null; }
   if (ch) ch.onmessage = (e) => {
-    if (!e.data || e.data.type !== 'clips') return;
+    if (!e.data || !['clips','outro'].includes(e.data.type)) return;
     try {
       const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
       const latest = mergeProject(raw);
+      if (e.data.type === 'outro') {
+        S.project.outroId = latest.outroId;
+        S.project.outroTitle = latest.outroTitle;
+        replan(); return;
+      }
       S.project.cutEdits = latest.cutEdits;
       if (S.project.autoimg && latest.autoimg && S.project.autoimg.seed === latest.autoimg.seed) {
         S.project.autoimg.shots = latest.autoimg.shots;
@@ -1634,6 +1640,7 @@ function syncUI() {
   $('snap').checked = !!S.project.timing.snap;
   document.querySelectorAll('.wa-toggle').forEach(el => { el.checked = S.project.wa !== false; });
   document.querySelectorAll('.extra-toggle').forEach(el => { el.checked = S.project.extra === true; });
+  document.querySelectorAll('.base-toggle').forEach(el => { el.checked = S.project.base !== false; });
   for (const set of J.SET_ORDER) document.querySelectorAll('.' + set + '-toggle').forEach(el => { el.checked = J.setOn(S.project, set); });
   document.querySelectorAll('.unify-toggle').forEach(el => { el.checked = S.project.unify === true; });
   document.querySelectorAll('.typeset-toggle').forEach(el => { el.checked = S.project.typeset === true; });
@@ -1726,6 +1733,8 @@ function bind() {
   }));
   setSwitch('extra-toggle', 'extra', true, '追加分の演出：使う', '追加分の演出：使わない（最初の公開版の演出だけ）');
   setSwitch('wa-toggle', 'wa', true, '和風の演出：使う', '和風の演出：使わない（おまかせ・シャッフルで選ばれません）');
+  setSwitch('base-toggle', 'base', true, '基本の部品：使う', '基本の部品：使わない');
+  setSwitch('astra-toggle', 'astra', false, 'Astra生成部品：使う', 'Astra生成部品：使わない');
   setSwitch('typo-toggle', 'typo', true, '文字PV系の部品：使う', '文字PV系の部品：使わない（おまかせ・シャッフルで選ばれません）');
   setSwitch('kinetic-toggle', 'kinetic', true, 'キネティックの部品：使う', 'キネティックの部品：使わない（おまかせ・シャッフルで選ばれません）');
   setSwitch('horror-toggle', 'horror', true, 'ホラーの演出：使う（おまかせの雰囲気に「ホラー」が加わります）', 'ホラーの演出：使わない');
@@ -1954,6 +1963,7 @@ function boot() {
   if (J.loadSong && S.project.audioName) J.loadSong().then(f => { if (f && f.name === S.project.audioName && !S.audio) loadAudioFile(f, true); });
   loadProjectClips();
   if (J.autoimgBind) J.autoimgBind(() => S.project, () => { replan(); flushSave(); });   // AUTOIMG
+  if (J.bindOutroControls) J.bindOutroControls(() => S.project, () => { replan(); commit(); flushSave(); });
   if (J.autoimgRestore) J.autoimgRestore(S.project).then(() => { S.need = true; });   // AUTOIMG
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

@@ -17,6 +17,9 @@ J.defaultProject = () => ({
   extra: false,                   // random picks may use the parts added after the first version (追加分)
   wa: true,                       // …and the 和風 motifs (提灯・障子・家紋…) — applied after 'extra'
   horror: false,                  // parts sets (independent of 'extra'): ホラー (also enables the ホラー mood)
+  base: true,                     // original parts; missing in older projects means on
+  astra: false,                   // opt-in Astra-generated parts
+  outroTitle: false,              // explicitly show title in new instrumental endings
   typo: true,                     // 文字PV系 typographic parts
   kinetic: true,                  // キネティック parts
   lang: 'auto',                   // 歌詞の言語: 'auto' | 'ja' | 'zh-Hant' | 'zh-Hans' | 'ko' — picks the faces each font key is drawn with
@@ -548,10 +551,12 @@ J.plan = (project, audio) => {
     const titleText = [title, artist].filter(Boolean).join('  /  ');
     const wantCam = olook && olook.cam && J.CAMERA[olook.cam] ? olook.cam : pickCam(rng, st, en, Object.assign({}, fx, { motion: Math.min(fx.motion || 0.7, 0.4) }), J.LAYOUTS.interlude || {}, false, history);
     const camP = J.CAMERA[wantCam] && J.CAMERA[wantCam].plan ? J.CAMERA[wantCam].plan(rng, st) : {};
-    plan.cuts.push(makeCut({ text: '', lineText: '', line: -2, start: outroStart, end: plan.duration, layout: 'interlude', enter: 'blur', exit: 'blur', hold: 'drift', inDur: 0.5, outDur: 0.6,
-      params: { variant: 'quiet', showTitle: !!titleText && titleFor > 0 && dur >= 2.2, titleDelay: Math.max(0, dur - titleFor), titleText },
+    const authoredOutro=!!(olook && olook.layout && J.LAYOUTS[olook.layout]);
+    plan.cuts.push(makeCut({ text: '', lineText: '', line: -2, start: outroStart, end: plan.duration,
+      layout: authoredOutro ? olook.layout : 'interlude', instrumental: authoredOutro, enter: authoredOutro ? 'asCut' : 'blur', exit: authoredOutro ? 'asCutExit' : 'blur', hold: authoredOutro ? 'asStill' : 'drift', inDur: 0.5, outDur: authoredOutro ? 0 : 0.6,
+      params: { variant: 'quiet', showTitle: authoredOutro ? !!titleText && project.outroTitle === true : !!titleText && titleFor > 0 && dur >= 2.2, titleDelay: Math.max(0, dur - titleFor), titleText },
       decor: outroDecor(rng, en, olook), scheme: schemeIdx, seed: J.h(project.seed, 7702), bg: 'none', cam: wantCam, camP }));
-    const fxOn = k2 => en.fx == null || en.fx[k2] !== false;
+    const fxOn = k2 => !authoredOutro && (en.fx == null || en.fx[k2] !== false);
     const beatMode = olook && olook.beat || 'other';
     let beatN = 0;
     if (beatMode !== 'none') {
@@ -580,12 +585,14 @@ J.plan = (project, audio) => {
     cutNumbers[c.line] = n + 1;
     c.editKey = c.line + ':' + n;
     if (!zones || c.zone) return;
-    if (c.layout === 'interlude') { if (c.line !== -2) c.params = Object.assign({}, c.params, { showTitle: false }); return; }   // no lyric: the whole frame. The ending cut keeps its title.
+    if (c.line === -2) return; // authored endings always use the full frame, including centre-free mode
+    if (c.layout === 'interlude') { c.params = Object.assign({}, c.params, { showTitle: false }); return; }
     c.zone = zoneOf(c.line);
   });
   plan.events.sort((a, b) => a.t - b.t);
   plan.energy = audio && audio.energy ? audio.energy : null;
   plan.energyRate = audio && audio.energyRate ? audio.energyRate : 0;
+  if (J.astraOnly && J.astraOnly(project)) J.enforceAstraPlan(plan, project);
   return plan;
 };
 
@@ -867,6 +874,7 @@ function pickHold(rng, en, fx, history) {
 }
 /* decorations that still read when there is no lyric left on screen */
 function outroDecor(rng, en, look) {
+  if (look && look.layout) return []; // these endings draw their own complete composition
   const wanted = look && look.decor && look.decor.length ? look.decor : ['brackets', 'rings', 'dots', 'sparks', 'waveform', 'arrows', 'slash'];
   const pool = wanted.filter(k => J.DECOR[k] && (!en.decor || en.decor[k] !== false));
   const bag = pool.slice(), out = [];

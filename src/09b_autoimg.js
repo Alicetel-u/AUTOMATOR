@@ -573,15 +573,21 @@ const OUTRO_LOOKS = {
 J.OUTRO_LOOKS = OUTRO_LOOKS;
 J.OUTRO_IDS = Object.keys(OUTRO_LOOKS);
 J.outroLookOf = (id) => OUTRO_LOOKS[id] || OUTRO_LOOKS.afterglow;
+J.outroOptions = project => J.OUTRO_IDS.filter(id => {
+  const look=OUTRO_LOOKS[id];
+  if(look.set==='astra')return !!(J.setOn&&J.setOn(project,'astra'));
+  return !(J.astraOnly&&J.astraOnly(project));
+});
 J.outroIdFor = (project) => {
-  if (project && project.outroId && OUTRO_LOOKS[project.outroId]) return project.outroId;
-  return J.OUTRO_IDS[(Math.abs((project && project.seed) || 1) % J.OUTRO_IDS.length)];
+  const ids=J.outroOptions(project);
+  if (project && ids.includes(project.outroId)) return project.outroId;
+  return ids[Math.abs(((project && project.seed) || 1)|0)%ids.length] || 'afterglow';
 };
 J.outroReshuffle = (project) => {
   if (!project) return;
   const cur = project.outroId || J.outroIdFor(project);
-  const choices = J.OUTRO_IDS.filter(id => id !== cur);
-  project.outroId = choices[Math.floor(Math.random() * choices.length)] || 'afterglow';
+  const choices = J.outroOptions(project).filter(id => id !== cur);
+  project.outroId = choices[Math.floor(Math.random() * choices.length)] || J.outroIdFor(project);
 };
 J._autoimgShots = buildShots;
 J._autoimgFamily = familyOf;

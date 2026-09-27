@@ -237,7 +237,7 @@ class Renderer {
       }
     }
     // ---------- HUD ----------
-    if (plan.hud && !opt.noHud && layer !== 'back') {
+    if (plan.hud && !opt.noHud && layer !== 'back' && !(mainCut && mainCut.instrumental)) {
       const env = this.makeEnv(ctx, plan, mainCut, sc, { pass: 'main', t: tq, lt: 0, ltb: 0, step, scale, allowFilter, energy, beat: beatInfo });
       J.drawHUD(env, plan);
     }

@@ -377,3 +377,9 @@ SAMPLE = '我還記得/黎明的顏色\n散開的聲音在遠方響起\n欸，�
 TITLE = 'JIZURA — 動態歌詞影片製作工具'
 
 DESCRIPTION = '在瀏覽器中把歌詞做成動態歌詞影片，並匯出 MP4。'
+
+# Astra expression library controls.
+BODY.update({'基本の部品を使う': '使用基本部件', '最初の公開版の基本演出。Astraだけを使う場合はオフにします': '最初版本的基本效果。只使用 Astra 時請關閉。', 'Astra生成部品を使う': '使用 Astra 生成部件', 'Astraが作った字組み・動き・装飾。演出のチェックをこれだけにするとAstra部品のみ使用（行指定・ロックも対象）。配色・書体は共通です': 'Astra 製作的排版、動態和裝飾。效果選項僅勾選此項時，只使用 Astra 部件（也適用於行指定與鎖定）。配色和字體共用。'})
+UI.update({'Astra生成部品': 'Astra', '基本の部品：使う': 'Base parts: on', '基本の部品：使わない': 'Base parts: off', 'Astra生成部品：使う': 'Astra parts: on', 'Astra生成部品：使わない': 'Astra parts: off'})
+
+BODY.update({'曲末の演出': '曲末效果', '別の終わり方': '另一種結尾', '最後に曲名を表示': '最後顯示曲名'})

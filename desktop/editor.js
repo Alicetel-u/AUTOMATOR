@@ -77,6 +77,7 @@ function audioLike() {
   return a;
 }
 function replan() {
+  if (J.syncOutroControls) J.syncOutroControls(E.project);
   const project = Object.assign({}, E.project, { keyBg: 'off' });
   E.plan = J.plan(project, audioLike());
   E.plan.clips = E.project.clips;
@@ -586,6 +587,15 @@ async function boot() {
   }
   replan();
   try { await J.ensureFonts((E.project.lyrics || '') + (E.project.title || ''), J.fontsOfPlan(E.plan)); } catch (e) {}
+  if (J.bindOutroControls) J.bindOutroControls(() => E.project, () => {
+    const raw=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    raw.outroId=E.project.outroId;raw.outroTitle=E.project.outroTitle;
+    localStorage.setItem(LS_KEY,JSON.stringify(raw));
+    if(bc)bc.postMessage({type:'outro'});
+    replan();
+    const ending=E.plan.cuts.find(c=>c.line===-2);
+    if(ending)seek(ending.start+Math.min(1,ending.dur*.25));else draw();
+  });
   await loadClips();
   if (J.autoimgRestore) await J.autoimgRestore(E.project);   // AUTOIMG
   draw();

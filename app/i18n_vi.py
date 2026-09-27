@@ -462,3 +462,9 @@ EXPORT = {
     '音声をエンコード中': 'Mã hóa âm thanh',
     '完了': 'Hoàn thành'
 }
+
+# Astra expression library controls.
+BODY.update({'基本の部品を使う': 'Dùng thành phần cơ bản', '最初の公開版の基本演出。Astraだけを使う場合はオフにします': 'Hiệu ứng của phiên bản đầu. Tắt để chỉ dùng Astra.', 'Astra生成部品を使う': 'Dùng thành phần do Astra tạo', 'Astraが作った字組み・動き・装飾。演出のチェックをこれだけにするとAstra部品のみ使用（行指定・ロックも対象）。配色・書体は共通です': 'Kiểu chữ, chuyển động và trang trí do Astra tạo. Chỉ chọn ô hiệu ứng này để chỉ dùng Astra, kể cả thiết lập và khóa dòng. Bảng màu và phông chữ vẫn dùng chung.'})
+UI.update({'Astra生成部品': 'Astra', '基本の部品：使う': 'Base parts: on', '基本の部品：使わない': 'Base parts: off', 'Astra生成部品：使う': 'Astra parts: on', 'Astra生成部品：使わない': 'Astra parts: off'})
+
+BODY.update({'曲末の演出': 'Hiệu ứng kết thúc', '別の終わり方': 'Kết thúc khác', '最後に曲名を表示': 'Hiện tên bài ở cuối'})

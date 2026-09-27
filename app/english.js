@@ -4,6 +4,10 @@
   'use strict';
   const titles = {
     layout: {
+      asMonument: 'Astra · Monument', asDiptych: 'Astra · Diptych', asSpine: 'Astra · Vertical spine',
+      asPassepartout: 'Astra · Framed type', asStaircase: 'Astra · Rhythmic steps', asHorizon: 'Astra · Horizon poem',
+      tyCinemaTitle: 'Cinema title', tyMarginPress: 'Editorial margin',
+      tyDepthPrint: 'Depth echo type', tyGalleryCaption: 'Gallery caption',
       vcols: 'Vertical text', marquee: 'Scrolling banner', tile: 'Tiled text',
       huge: 'Oversized text', gloss: 'Annotation', diag: 'Diagonal band',
       stack: 'Echo stack', lowerThird: 'Lower third', corners: 'Opposite corners',
@@ -32,6 +36,8 @@
       halftoneBig: 'Oversized halftone text'
     },
     enter: {
+      asCut: 'Astra · Instant', asCascade: 'Astra · Cascade', asTrackingLock: 'Astra · Tracking lock', asRollPress: 'Astra · Letterpress reveal',
+      tySilkRise: 'Silk rise', tyApertureType: 'Type aperture', tyFocusSettle: 'Focus settle',
       assemble: 'Break apart and assemble', riseMask: 'Reveal from below',
       dropMask: 'Reveal from above', slideL: 'Slide from left', slideR: 'Slide from right',
       slideWhole: 'Slide in together', flipX: 'Flip on vertical axis',
@@ -55,6 +61,8 @@
       shadowFirst: 'Shadow first', tokoroten: 'Extruded noodles'
     },
     hold: {
+      asStill: 'Astra · Still', asBeatBreath: 'Astra · Beat breath',
+      tySlowFloat: 'Quiet float',
       still: 'Still', breathe: 'Breathe', glitchtick: 'Glitch tick',
       colorRun: 'Traveling color', trackBreathe: 'Breathing letter spacing',
       beatHop: 'Hop to the beat', hWave: 'Horizontal wave',
@@ -69,6 +77,8 @@
       pluckString: 'Plucked string'
     },
     exit: {
+      asCutExit: 'Astra · Cut out', asLetterDrift: 'Astra · Letter drift', asVelvetFall: 'Astra · Velvet fall',
+      tyWaterRelease: 'Water release', tyClosePrint: 'Quiet closing',
       fall: 'Crumble and fall', drift: 'Drift away', sinkMask: 'Sink out',
       riseOut: 'Rise out', slideOutL: 'Slide left', slideOutR: 'Slide right',
       flipOutX: 'Doors close', flipOutY: 'Flip down',
@@ -97,6 +107,7 @@
       scribbleOut: 'Scribble away', candleOut: 'Blow out'
     },
     decor: {
+      asCornerTicks: 'Astra · Corner ticks', asOrbitDots: 'Astra · Orbit dots', asSideMeter: 'Astra · Beat ruler',
       brackets: 'Corner marks', rings: 'Coordinate rings', dots: 'Dotted ring',
       leaders: 'Leader lines', blobs: 'Ink stains', bars: 'Rough bands',
       counter: 'Large numbers', cropMarks: 'Crop marks',
@@ -121,6 +132,7 @@
       likeCounter: 'Like counter', mediaControls: 'Playback controls'
     },
     treat: {
+      asFineShadow: 'Astra · Fine shadow',
       none: 'None', outline: 'Hollow letters', outlineFill: 'Outlined text',
       doubleOutline: 'Double outline', extrude: 'Extruded text',
       marker: 'Marker highlight', strike: 'Strikethrough',
@@ -141,6 +153,7 @@
       spotChar: 'Highlighted character', ransom: 'Cutout letters'
     },
     bg: {
+      asSoftField: 'Astra · Soft light', asContourField: 'Astra · Quiet contours',
       none: 'Solid color', seigaiha: 'Seigaiha waves',
       asanoha: 'Asanoha pattern', topoLines: 'Contour lines',
       ridgePlot: 'Mountain ridges', nightMoon: 'Moonlit night',
@@ -154,6 +167,7 @@
       letterbox: 'Cinema letterbox', noiseField: 'Moving noise'
     },
     cam: {
+      asDolly: 'Astra · Gentle dolly', asLateral: 'Astra · Lateral parallax',
       push: 'Slow push in', rackFocus: 'Rack focus',
       floatNoise: 'Floating camera', vertigo: 'Dolly zoom',
       spiralIn: 'Spiral zoom', jelly: 'Elastic wobble',
@@ -179,6 +193,7 @@
       crtOff: 'CRT powers off'
     },
     trans: {
+      asSoftCut: 'Astra · Soft cut', asSplitGate: 'Astra · Centre gate',
       wipe: 'Edge wipe', diagonalWipe: 'Diagonal band wipe',
       irisOpen: 'Iris opens', pushSlide: 'Push',
       doorsOpen: 'Double doors', checker: 'Checkerboard',

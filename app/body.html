@@ -134,7 +134,9 @@
             <button id="btnNext2" class="ghost">次の案 ▶</button>
           </div>
           <div class="pick-sets">
-            <label class="check"><input id="eExtra" class="extra-toggle" type="checkbox"><span>追加分の演出も使う<small>最初の公開版のあとに追加した約350の演出・配色セット12・書体6も、おまかせやシャッフルの候補にします（オフのときは最初の公開版の演出だけ）</small></span></label>
+            <label class="check"><input class="base-toggle" type="checkbox" checked><span>基本の部品を使う<small>最初の公開版の基本演出。Astraだけを使う場合はオフにします</small></span></label>
+          <label class="check"><input class="astra-toggle" type="checkbox"><span>Astra生成部品を使う<small>Astraが作った字組み・動き・装飾。演出のチェックをこれだけにするとAstra部品のみ使用（行指定・ロックも対象）。配色・書体は共通です</small></span></label>
+          <label class="check"><input id="eExtra" class="extra-toggle" type="checkbox"><span>追加分の演出も使う<small>最初の公開版のあとに追加した約350の演出・配色セット12・書体6も、おまかせやシャッフルの候補にします（オフのときは最初の公開版の演出だけ）</small></span></label>
             <label class="check"><input id="eWa" class="wa-toggle" type="checkbox" checked><span>和風の演出も使う<small>提灯・はがき・障子・扇・家紋・青海波・桜の花びらなどの和風グラフィック。オフにすると、おまかせやシャッフルで選ばれません</small></span></label>
             <label class="check"><input class="typo-toggle" type="checkbox" checked><span>文字PV系の部品を使う<small>線・数字・字組みだけで見せる、文字PVらしい部品（約50）</small></span></label>
             <label class="check"><input class="kinetic-toggle" type="checkbox" checked><span>キネティックの部品を使う<small>語ごとに動く・跳ねる・積み上がる、動き重視の部品（約50）</small></span></label>
@@ -161,6 +163,9 @@
           <p class="note">曲と歌詞とタイミングを決めたら、別ウィンドウで画像と動画をタイムラインに置きます。</p>
           <button type="button" class="primary open-editor">配置ウィンドウを開く</button>
           <div class="autoimg-mount"></div>
+          <label class="field">曲末の演出<select class="outro-select" aria-label="曲末の演出"></select></label>
+          <div class="row"><button class="ghost outro-roll" type="button">別の終わり方</button><label class="check"><input class="outro-title" type="checkbox"><span>最後に曲名を表示</span></label></div>
+          <p class="note outro-note"></p>
         </div>
         <div class="easy-sec">
           <h3>書き出し</h3>
@@ -230,6 +235,8 @@
 
       <div class="tabpane" data-pane="tech" hidden>
         <div class="pick-sets">
+          <label class="check"><input class="base-toggle" type="checkbox" checked><span>基本の部品を使う<small>最初の公開版の基本演出。Astraだけを使う場合はオフにします</small></span></label>
+          <label class="check"><input class="astra-toggle" type="checkbox"><span>Astra生成部品を使う<small>Astraが作った字組み・動き・装飾。演出のチェックをこれだけにするとAstra部品のみ使用（行指定・ロックも対象）。配色・書体は共通です</small></span></label>
           <label class="check"><input id="tExtra" class="extra-toggle" type="checkbox"><span>追加分の演出も使う<small>「追加」印の手法・スタイル・書体。オフのときは、おまかせやシャッフルで最初の公開版の演出だけを使います</small></span></label>
           <label class="check"><input id="tWa" class="wa-toggle" type="checkbox" checked><span>和風の演出も使う<small>「和」印の手法とスタイル。オフにすると、おまかせやシャッフルでは選ばれません（追加分の判定のあとに適用。行ごとに手動で指定した場合は使えます）</small></span></label>
           <label class="check"><input class="typo-toggle" type="checkbox" checked><span>文字PV系の部品を使う<small>「文」印の手法。オフにすると、おまかせやシャッフルでは選ばれません</small></span></label>
@@ -247,6 +254,9 @@
           <p class="note">曲と歌詞とタイミングを決めたら、別ウィンドウで画像と動画をタイムラインに置きます。</p>
           <button type="button" class="primary open-editor">配置ウィンドウを開く</button>
           <div class="autoimg-mount"></div>
+          <label class="field">曲末の演出<select class="outro-select" aria-label="曲末の演出"></select></label>
+          <div class="row"><button class="ghost outro-roll" type="button">別の終わり方</button><label class="check"><input class="outro-title" type="checkbox"><span>最後に曲名を表示</span></label></div>
+          <p class="note outro-note"></p>
         </div>
         <div class="fields">
           <label class="field">画面比<select id="outAspect"><option value="16:9">16:9</option><option value="9:16">9:16 縦</option><option value="4:3">4:3</option><option value="3:4">3:4 縦</option><option value="1:1">1:1</option><option value="4:5">4:5 縦</option><option value="21:9">21:9</option></select></label>

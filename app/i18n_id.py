@@ -359,3 +359,9 @@ EXPORT = {
     'キャンセルしました': 'Dibatalkan', 'フレーム ': 'Frame ',
     '音声をエンコード中': 'Mengodekan audio', '完了': 'Selesai',
 }
+
+# Astra expression library controls.
+BODY.update({'基本の部品を使う': 'Gunakan komponen dasar', '最初の公開版の基本演出。Astraだけを使う場合はオフにします': 'Efek versi awal. Nonaktifkan untuk memakai Astra saja.', 'Astra生成部品を使う': 'Gunakan komponen buatan Astra', 'Astraが作った字組み・動き・装飾。演出のチェックをこれだけにするとAstra部品のみ使用（行指定・ロックも対象）。配色・書体は共通です': 'Tipografi, gerak, dan dekorasi buatan Astra. Centang hanya opsi efek ini untuk memakai Astra saja, termasuk pengaturan dan kunci baris. Palet dan font tetap digunakan bersama.'})
+UI.update({'Astra生成部品': 'Astra', '基本の部品：使う': 'Base parts: on', '基本の部品：使わない': 'Base parts: off', 'Astra生成部品：使う': 'Astra parts: on', 'Astra生成部品：使わない': 'Astra parts: off'})
+
+BODY.update({'曲末の演出': 'Efek penutup', '別の終わり方': 'Penutup lain', '最後に曲名を表示': 'Tampilkan judul di akhir'})
