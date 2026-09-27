@@ -147,7 +147,10 @@ class Renderer {
     // モーフ (統一感): during the first moments of a morph cut its lyric is drawn by drawMorph (glyphs glide / melt)
     const MC = !opt.noTrans && !opt.glyphLog && mainCut && mainCut.morph && mainCut.index > 0 ? mainCut : null;
     const mPrev = MC ? plan.cuts[MC.index - 1] : null, mlt = MC ? tq - MC.start : 0;
-    const morphOn = !!(MC && mPrev && mlt < MC.morph.dur && Math.abs(mPrev.end - MC.start) < 0.06);
+    const editedMorph = MC && mPrev && plan.cutEdits &&
+      ((plan.cutEdits[MC.editKey] && plan.cutEdits[MC.editKey].text === MC.text) ||
+       (plan.cutEdits[mPrev.editKey] && plan.cutEdits[mPrev.editKey].text === mPrev.text));
+    const morphOn = !!(MC && mPrev && !editedMorph && mlt < MC.morph.dur && Math.abs(mPrev.end - MC.start) < 0.06);
     let mainBB = null, mainEnv = null;
     // camera blur (focus pulls etc.) is applied ONCE to the whole content layer — a blur filter on every
     // individual draw call is extremely slow when a layout draws many text rows
@@ -196,6 +199,13 @@ class Renderer {
       if (cam.skx) X.transform(1, 0, Math.tan(cam.skx * J.DEG), 1, 0, 0);
       X.scale(cs * (cam.sx ?? 1), cs * (cam.sy ?? 1)); X.translate(-W / 2, -H / 2);
       if (P.pass !== 'main') X.globalCompositeOperation = J.lum(csc.bg) > 0.55 ? 'multiply' : 'source-over';
+      const edit = plan.cutEdits && plan.cutEdits[cut.editKey];
+      if (edit && edit.text === cut.text) {
+        const x = J.clamp(Number.isFinite(+edit.x) ? +edit.x : 0.5, -1, 2) * W;
+        const y = J.clamp(Number.isFinite(+edit.y) ? +edit.y : 0.5, -1, 2) * H;
+        const s = J.clamp(Number.isFinite(+edit.s) ? +edit.s : 1, 0.25, 3);
+        X.translate(x, y); X.scale(s, s); X.translate(-W / 2, -H / 2);
+      }
       this.drawCut(env);
       X.restore();
       if (P.pass === 'main' && cut === cut0) { mainEnv = env; }

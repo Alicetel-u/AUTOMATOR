@@ -125,6 +125,52 @@ function mergeProject(p) {
   for (const uf of o.userFonts) if (!J.FONTS[uf.key]) J.addUserFont(uf.key, uf.label, uf.family, uf.weight);
   o.fonts = {};
   for (const [role, k] of Object.entries((p && p.fonts) || {})) if (typeof k === 'string' && J.FONTS[k] && /^[\w-]+$/.test(role)) o.fonts[role] = k;
+  o.cutEdits = {};
+  for (const [key, e] of Object.entries((p && p.cutEdits) || {})) {
+    if (!/^-?\d+:\d+$/.test(key) || !e || typeof e.text !== 'string') continue;
+    o.cutEdits[key] = {
+      text: e.text.slice(0, 300),
+      x: Number.isFinite(+e.x) ? J.clamp(+e.x, -1, 2) : 0.5,
+      y: Number.isFinite(+e.y) ? J.clamp(+e.y, -1, 2) : 0.5,
+      s: Number.isFinite(+e.s) ? J.clamp(+e.s, 0.25, 3) : 1,
+    };
+  }
+  if (o.autoimg && typeof o.autoimg === 'object') {
+    const names = Array.isArray(o.autoimg.names) ? o.autoimg.names : [];
+    const cleanShots = source => {
+      const shots = {};
+      for (const [key, e] of Object.entries(source || {}).slice(0, 512)) {
+        if (!/^(?:\d+|t\d+)$/.test(key) || !e || !Number.isFinite(+e.base)) continue;
+        shots[key] = {
+          base: +e.base, start: Math.max(0, +e.start || 0), dur: Math.max(0.2, +e.dur || 0.2),
+          image: Math.max(0, Math.floor(+e.image || 0)),
+          x: Number.isFinite(+e.x) ? J.clamp(+e.x, -1, 2) : 0.5,
+          y: Number.isFinite(+e.y) ? J.clamp(+e.y, -1, 2) : 0.5,
+          s: Number.isFinite(+e.s) ? J.clamp(+e.s, 0.25, 3) : 1,
+        };
+      }
+      return shots;
+    };
+    const cleanFills = source => (Array.isArray(source) ? source : []).slice(0, 256).filter(f => f && Number.isFinite(+f.start) && Number.isFinite(+f.dur)).map(f => ({
+      start: Math.max(0, +f.start), dur: Math.max(0.2, +f.dur),
+      image: J.clamp(Math.floor(+f.image || 0), 0, Math.max(0, names.length - 1)),
+      x: Number.isFinite(+f.x) ? J.clamp(+f.x, -1, 2) : 0.5,
+      y: Number.isFinite(+f.y) ? J.clamp(+f.y, -1, 2) : 0.5,
+      s: Number.isFinite(+f.s) ? J.clamp(+f.s, 0.25, 3) : 1,
+      family: f.family === 'full' ? 'full' : 'side', outro: !!f.outro, locked: !!f.locked,
+    }));
+    const cleaned = Object.assign({}, o.autoimg, {
+      groupSeed: Number.isInteger(+o.autoimg.groupSeed) ? (+o.autoimg.groupSeed >>> 0) : 0,
+      shots: cleanShots(o.autoimg.shots), fills: cleanFills(o.autoimg.fills),
+    });
+    cleaned.history = (Array.isArray(o.autoimg.history) ? o.autoimg.history : []).slice(-10)
+      .filter(state => state && Number.isInteger(+state.seed)).map(state => ({
+        seed: +state.seed, groupSeed: (+state.groupSeed || 0) >>> 0,
+        shots: cleanShots(state.shots), fills: cleanFills(state.fills),
+      }));
+    delete cleaned.previous;
+    o.autoimg = cleaned;
+  }
   const axis = (v, d) => Number.isFinite(+v) ? J.clamp(+v, -1, 2) : d;
   const cleanClip = (c) => ({
     id: String(c.id).slice(0, 40),
@@ -137,7 +183,7 @@ function mergeProject(p) {
     x: axis(c.x, 0.5), y: axis(c.y, 0.5),
     s: Number.isFinite(+c.s) ? J.clamp(+c.s, 0.05, 8) : 1,
   });
-  let clips = Array.isArray(p && p.clips) ? p.clips.filter(c => c && /^[\w-]+$/.test(String(c.id || ''))).map(cleanClip).slice(0, 8) : [];
+  let clips = Array.isArray(p && p.clips) ? p.clips.filter(c => c && /^[\w-]+$/.test(String(c.id || ''))).map(cleanClip).slice(0, 64) : [];
   if (!clips.length && p && typeof p.characterName === 'string' && p.characterName) {
     const src = p.character || {};
     clips = [cleanClip({ id: 'legacy', place: src.place, name: p.characterName, kind: 'image', start: 0, trim: 0, dur: 86400, x: src.x, y: src.y, s: src.s })];
@@ -161,8 +207,16 @@ function flushSave() {
   try {
     const prev = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
     if (prev && Array.isArray(prev.clips)) S.project.clips = mergeProject(prev).clips;
+    if (prev && prev.cutEdits && prev.lyrics === S.project.lyrics && prev.seed === S.project.seed) {
+      S.project.cutEdits = mergeProject(prev).cutEdits;
+    }
+    if (prev && prev.autoimg && S.project.autoimg && prev.autoimg.seed === S.project.autoimg.seed &&
+        JSON.stringify(prev.autoimg.names) === JSON.stringify(S.project.autoimg.names)) {
+      S.project.autoimg.shots = mergeProject(prev).autoimg.shots;
+      S.project.autoimg.fills = mergeProject(prev).autoimg.fills;
+    }
     localStorage.setItem(LS_KEY, JSON.stringify(S.project));
-    if (S.plan) S.plan.clips = S.project.clips;
+    if (S.plan) { S.plan.clips = S.project.clips; S.plan.cutEdits = S.project.cutEdits; S.plan.autoimg = S.project.autoimg; }
     if (jizuraBc) jizuraBc.postMessage({ type: 'project' });
   } catch (e) {}
 }
@@ -1555,7 +1609,19 @@ function openEditor() {
 function bindEditor() {
   document.querySelectorAll('.open-editor').forEach(b => b.addEventListener('click', openEditor));
   let ch; try { ch = new BroadcastChannel('jizura'); } catch (e) { ch = null; }
-  if (ch) ch.onmessage = (e) => { if (e.data && e.data.type === 'clips') loadProjectClips(); };
+  if (ch) ch.onmessage = (e) => {
+    if (!e.data || e.data.type !== 'clips') return;
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+      const latest = mergeProject(raw);
+      S.project.cutEdits = latest.cutEdits;
+      if (S.project.autoimg && latest.autoimg && S.project.autoimg.seed === latest.autoimg.seed) {
+        S.project.autoimg.shots = latest.autoimg.shots;
+        S.project.autoimg.fills = latest.autoimg.fills;
+      }
+    } catch (err) {}
+    loadProjectClips().then(() => replan());
+  };
 }
 
 function syncUI() {

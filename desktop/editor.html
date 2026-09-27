@@ -9,7 +9,7 @@
 <body>
 <header>
   <h1>配置</h1>
-  <p>歌詞のタイミングはこのウィンドウでは変えません。画像と動画を置いて、通常のMP4に書き出します。</p>
+  <p>タイムラインで選択し、プレビューでドラッグして移動・右下で拡大縮小。歌詞のタイミングはメイン画面で変更します。</p>
 </header>
 <div class="stage" id="stage"><canvas id="view" width="1280" height="720"></canvas></div>
 <div class="transport">
@@ -17,6 +17,8 @@
   <span class="tc" id="time">00:00.00 / 00:00.00</span>
   <button id="btnDelete" type="button">削除</button>
   <span class="tc muted" id="clipInfo"></span>
+  <select id="shotImage" title="自動配置画像を選択" hidden></select>
+  <button id="btnResetPosition" type="button" hidden>位置を戻す</button>
   <button id="btnExport" class="primary" type="button">MP4を書き出す</button>
   <span id="msg"></span>
 </div>
@@ -25,6 +27,7 @@
     <button type="button" id="zoomOut" title="縮小">−</button>
     <button type="button" id="zoomFit" title="全体を表示">全体</button>
     <button type="button" id="zoomIn" title="拡大">＋</button>
+    <button type="button" id="btnFillGaps" title="手で調整した配置は残し、未使用の画像から隙間を埋めます">隙間を自動で埋める</button>
     <span class="muted">ホイールで左右、Ctrl+ホイールで拡大</span>
   </div>
   <div id="tracks"></div>
@@ -72,7 +75,6 @@
 <script src="/src/11p_typo2.js"></script>
 <script src="/src/11p_typo3.js"></script>
 <script src="/src/11q_sets.js"></script>
-<script src="/src/12_ui.js"></script>
 <script src="/desktop/editor.js"></script>
 </body>
 </html>

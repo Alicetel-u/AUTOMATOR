@@ -105,10 +105,18 @@ function buildShots(plan, look) {
   look = look || LOOKS.yohaku;
   const lines = lyricLines(plan);
   const cuts = plan.cuts || [];
+  const cfg = plan.autoimg || {};
+  const regroup = !!cfg.groupSeed;
+  const rng = regroup ? rngOf(cfg.groupSeed) : null;
+  const anchors = regroup ? Object.values(cfg.shots || {}).filter(e => e && Number.isFinite(+e.base)).map(e => +e.base) : [];
+  let groupSize = 0, target = regroup ? 2 + Math.floor(rng() * 3) : 0;
+  const lyricCuts = regroup ? cuts.filter(c => c && c.line >= 0 && c.layout !== 'interlude' && c.text)
+    .sort((a, b) => a.start - b.start) : [];
+  const units = lyricCuts.length ? lyricCuts : lines;
   const shots = [];
   let cur = null;
-  for (const ln of lines) {
-    const mine = cuts.filter(c => c.line === ln.index && !c.companion);
+  for (const ln of units) {
+    const mine = lyricCuts.length ? [ln] : cuts.filter(c => c.line === ln.index && !c.companion);
     const layout = dominantLayout(mine);
     const family = familyOf(layout);
     const impact = !!(ln.impact || mine.some(c => c.kime || c.emph));
@@ -117,14 +125,21 @@ function buildShots(plan, look) {
     if (!cur) {
       cur = { start, end, family, layout, impact };
       shots.push(cur);
+      groupSize = 1;
       continue;
     }
     const held = start - cur.start;
-    if (look.lineBreak || (look.impact && impact) || (family !== cur.family && held >= look.hold)) {
+    const anchored = anchors.some(base => Math.abs(base - start) < 0.1);
+    const split = regroup
+      ? anchored || (held >= 0.8 && (groupSize >= target || (impact && groupSize >= 2 && rng() < 0.7) || (family !== cur.family && rng() < 0.75)))
+      : look.lineBreak || (look.impact && impact) || (family !== cur.family && held >= look.hold);
+    if (split) {
       cur.end = start;
       cur = { start, end, family, layout, impact };
       shots.push(cur);
-    } else cur.end = end;
+      groupSize = 1;
+      if (regroup) target = 2 + Math.floor(rng() * 3);
+    } else { cur.end = end; groupSize++; }
   }
   return appendOutro(plan, shots);
 }
@@ -167,9 +182,95 @@ function assign(count, imageCount, seed) {
   if (n > 1) for (let i = 1; i < order.length; i++) if (order[i] === order[i - 1]) order[i] = (order[i] + 1) % n;
   return order;
 }
+/* The automatic sequence stays the default. A shot gets a saved override only after
+   the user touches it in the placement window. Keep the original start as a guard
+   against applying an old edit to a different sequence after lyrics are changed. */
+function baseShots(plan) {
+  const cfg = plan && plan.autoimg;
+  if (!cfg || cfg.on === false || !cfg.names || !cfg.names.length) return [];
+  const shots = buildShots(plan, lookOf(cfg.look));
+  const order = assign(shots.length, cfg.names.length, cfg.seed | 0);
+  return shots.map((shot, i) => {
+    const saved = cfg.shots && (cfg.shots['t' + Math.round(shot.start * 1000)] || cfg.shots[i]);
+    const valid = saved && Math.abs((+saved.base || 0) - shot.start) < 0.1;
+    const start = valid && Number.isFinite(+saved.start) ? J.clamp(+saved.start, 0, Math.max(0, plan.duration - 0.2)) : shot.start;
+    const dur = valid && Number.isFinite(+saved.dur) ? J.clamp(+saved.dur, 0.2, Math.max(0.2, plan.duration - start)) : shot.end - shot.start;
+    return Object.assign({}, shot, {
+      index: i, base: shot.start, start, end: start + dur,
+      image: valid && Number.isInteger(+saved.image) ? J.clamp(+saved.image, 0, cfg.names.length - 1) : order[i],
+      x: valid && Number.isFinite(+saved.x) ? J.clamp(+saved.x, -1, 2) : 0.5,
+      y: valid && Number.isFinite(+saved.y) ? J.clamp(+saved.y, -1, 2) : 0.5,
+      s: valid && Number.isFinite(+saved.s) ? J.clamp(+saved.s, 0.25, 3) : 1,
+    });
+  });
+}
+J.autoimgShots = plan => {
+  const cfg = plan && plan.autoimg;
+  const base = baseShots(plan);
+  if (!cfg || !Array.isArray(cfg.fills) || !Array.isArray(cfg.names) || !cfg.names.length) return base;
+  const fills = cfg.fills.map((f, i) => {
+    if (!f || !Number.isFinite(+f.start) || !Number.isFinite(+f.dur) || !cfg.names.length) return null;
+    const start = J.clamp(+f.start, 0, Math.max(0, plan.duration - 0.2));
+    const dur = J.clamp(+f.dur, 0.2, Math.max(0.2, plan.duration - start));
+    return {
+      index: base.length + i, fillIndex: i, fill: true, locked: !!f.locked,
+      start, end: start + dur, image: J.clamp(Math.floor(+f.image || 0), 0, cfg.names.length - 1),
+      x: Number.isFinite(+f.x) ? J.clamp(+f.x, -1, 2) : 0.5,
+      y: Number.isFinite(+f.y) ? J.clamp(+f.y, -1, 2) : 0.5,
+      s: Number.isFinite(+f.s) ? J.clamp(+f.s, 0.25, 3) : 1,
+      family: f.family === 'full' ? 'full' : 'side', outro: !!f.outro, impact: false,
+    };
+  }).filter(Boolean);
+  return base.concat(fills);
+};
+/* Rebuild only generated fills. Any fill subsequently edited in the placement
+   window becomes locked, so another fill pass cannot move or replace it. */
+J.autoimgFillGaps = plan => {
+  const cfg = plan && plan.autoimg;
+  if (!cfg || cfg.on === false || !Array.isArray(cfg.names) || !cfg.names.length) return 0;
+  const locked = (Array.isArray(cfg.fills) ? cfg.fills : []).filter(f => f && f.locked);
+  const base = baseShots(plan);
+  const occupied = base.concat(locked.map(f => ({
+    start: +f.start || 0, end: (+f.start || 0) + (+f.dur || 0), image: +f.image || 0,
+  }))).sort((a, b) => a.start - b.start);
+  const gaps = [];
+  let cursor = 0;
+  for (const shot of occupied) {
+    const start = J.clamp(shot.start, 0, plan.duration);
+    if (start - cursor >= 0.8) gaps.push([cursor, start]);
+    cursor = Math.max(cursor, J.clamp(shot.end, 0, plan.duration));
+  }
+  if (plan.duration - cursor >= 0.8) gaps.push([cursor, plan.duration]);
+  const usage = cfg.names.map(() => 0);
+  for (const shot of occupied) if (usage[shot.image] != null) usage[shot.image]++;
+  const lyricEnd = Math.max(0, ...lyricLines(plan).map(ln => ln.visEnd || ln.end || 0));
+  const generated = [];
+  for (const [start, end] of gaps) {
+    const length = end - start;
+    const count = Math.max(1, Math.min(Math.floor(length / 0.8), Math.round(length / 3.5)));
+    const next = occupied.find(s => s.start >= end - 0.001);
+    let previous = [...occupied].reverse().find(s => s.end <= start + 0.001);
+    for (let i = 0; i < count && generated.length < 256; i++) {
+      const a = start + length * i / count;
+      const b = i === count - 1 ? end : start + length * (i + 1) / count;
+      const candidates = usage.map((n, image) => ({ image, score: n * 10 + (previous && image === previous.image ? 5 : 0) + (next && image === next.image ? 2 : 0) }));
+      candidates.sort((x, y) => x.score - y.score || x.image - y.image);
+      const image = candidates[0].image;
+      usage[image]++;
+      const cut = J.cutAt ? J.cutAt(plan, (a + b) / 2) : null;
+      const outro = a >= lyricEnd;
+      const fill = { start: a, dur: b - a, image, x: 0.5, y: 0.5, s: 1,
+        family: outro ? 'full' : familyOf(cut && cut.layout || 'center'), outro, locked: false };
+      generated.push(fill);
+      previous = { image };
+    }
+  }
+  cfg.fills = locked.concat(generated);
+  return generated.length;
+};
 function shotAt(shots, t) {
-  let i = 0;
-  for (let n = 0; n < shots.length; n++) if (shots[n].start <= t + 1e-4) i = n;
+  let i = -1;
+  for (let n = 0; n < shots.length; n++) if (shots[n].start <= t + 1e-4 && t < shots[n].end) i = n;
   return i;
 }
 function panelFor(plan, side, panel) {
@@ -184,6 +285,18 @@ function panelFor(plan, side, panel) {
 function sideFor(i, seed) {
   return ((seed + i) & 1) ? 'right' : 'left';
 }
+J.autoimgBox = (plan, shot) => {
+  if (!plan || !shot || !plan.autoimg) return null;
+  const look = lookOf(plan.autoimg.look);
+  const rect = look.forceFull || shot.family === 'full' || shot.outro
+    ? { x: 0, y: 0, w: plan.W, h: plan.H }
+    : panelFor(plan, sideFor(shot.index, plan.autoimg.seed | 0), look.panel);
+  return {
+    x: shot.x * plan.W + (rect.x - plan.W / 2) * shot.s,
+    y: shot.y * plan.H + (rect.y - plan.H / 2) * shot.s,
+    w: rect.w * shot.s, h: rect.h * shot.s,
+  };
+};
 function scratch(w, h) {
   const c = J._autoimgCanvas || (J._autoimgCanvas = document.createElement('canvas'));
   const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
@@ -258,21 +371,26 @@ J.autoimgDraw = (ctx, plan, scale, t) => {
   const els = J.autoimgEls;
   if (!cfg || cfg.on === false || !els.length || !plan.W || !plan.H) return;
   const look = lookOf(cfg.look);
-  const shots = buildShots(plan, look);
+  const shots = J.autoimgShots(plan).sort((a, b) => a.start - b.start || a.index - b.index);
   if (!shots.length) return;
-  const order = assign(shots.length, els.length, cfg.seed | 0);
   const i = shotAt(shots, t);
+  if (i < 0) return;
   const shot = shots[i];
   const span = Math.max(0.2, shot.end - shot.start);
   const p = J.clamp((t - shot.start) / span);
-  const k = i > 0 ? J.clamp((t - shot.start) / (shot.outro ? Math.max(look.fade, 0.5) : look.fade)) : 1;
+  const continuous = i > 0 && Math.abs(shots[i - 1].end - shot.start) < 0.01;
+  const k = continuous ? J.clamp((t - shot.start) / (shot.outro ? Math.max(look.fade, 0.5) : look.fade)) : 1;
   const { c, sx } = scratch(plan.W, plan.H);
   const blit = (index, prog, alpha) => {
-    const el = els[order[index]] && els[order[index]].el;
+    const el = els[shots[index].image] && els[shots[index].image].el;
     sx.clearRect(0, 0, c.width, c.height);
-    renderPlate(sx, el, plan, shots[index], index, prog, cfg.seed | 0, look);
+    renderPlate(sx, el, plan, shots[index], shots[index].index, prog, cfg.seed | 0, look);
     ctx.save();
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    const edited = shots[index];
+    ctx.translate(edited.x * plan.W, edited.y * plan.H);
+    ctx.scale(edited.s, edited.s);
+    ctx.translate(-plan.W / 2, -plan.H / 2);
     ctx.globalAlpha = alpha;
     ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(c, 0, 0, plan.W, plan.H);
@@ -289,10 +407,47 @@ function pickLook(current) {
 J.autoimgReshuffle = (project) => {
   if (project && project.autoimg && project.autoimg.on !== false && project.autoimg.names && project.autoimg.names.length) {
     project.autoimg.seed = (Math.random() * 1e9) | 0;
+    delete project.autoimg.shots;
+    delete project.autoimg.fills;
+    delete project.autoimg.groupSeed;
+    delete project.autoimg.history;
     project.autoimg.look = pickLook(project.autoimg.look);
   }
   if (J.outroReshuffle) J.outroReshuffle(project);
   J.autoimgStatus && J.autoimgStatus();
+};
+/* Change only image timing and ordering; keep the chosen look and every hand-edited
+   shot/fill. Stable time keys let an edited shot survive a different shot count. */
+J.autoimgRegroup = project => {
+  const cfg = project && project.autoimg;
+  if (!cfg || cfg.on === false || !Array.isArray(cfg.names) || !cfg.names.length) return false;
+  const snapshot = {
+    seed: cfg.seed, groupSeed: cfg.groupSeed || 0,
+    shots: JSON.parse(JSON.stringify(cfg.shots || {})),
+    fills: JSON.parse(JSON.stringify(cfg.fills || [])),
+  };
+  cfg.history = (Array.isArray(cfg.history) ? cfg.history : []).concat([snapshot]).slice(-10);
+  const stable = {};
+  for (const e of Object.values(cfg.shots || {})) {
+    if (e && Number.isFinite(+e.base)) stable['t' + Math.round(+e.base * 1000)] = e;
+  }
+  cfg.shots = stable;
+  cfg.fills = (cfg.fills || []).filter(f => f && f.locked);
+  cfg.groupSeed = ((Math.random() * 0xFFFFFFFF) >>> 0) || 1;
+  cfg.seed = (Math.random() * 1e9) | 0;
+  J.autoimgStatus && J.autoimgStatus();
+  return true;
+};
+J.autoimgPrevious = project => {
+  const cfg = project && project.autoimg;
+  if (!cfg || !Array.isArray(cfg.history) || !cfg.history.length) return false;
+  const prev = cfg.history.pop();
+  cfg.seed = prev.seed;
+  cfg.groupSeed = prev.groupSeed || 0;
+  cfg.shots = prev.shots || {};
+  cfg.fills = prev.fills || [];
+  J.autoimgStatus && J.autoimgStatus();
+  return true;
 };
 
 J.autoimgClear = async (project) => {
@@ -355,12 +510,16 @@ J.autoimgStatus = () => {
     const ending = project && project.outroId && J.outroLookOf ? J.outroLookOf(project.outroId).name : '';
     el.textContent = n ? [look, ending, n + '枚'].filter(Boolean).join('・') : (ending || '画像はまだありません');
   });
+  document.querySelectorAll('.autoimg-regroup').forEach(el => { el.disabled = !n; });
+  document.querySelectorAll('.autoimg-prev').forEach(el => { el.disabled = !n || !project.autoimg.history || !project.autoimg.history.length; });
 };
 function mount() {
   document.querySelectorAll('.autoimg-mount').forEach(host => {
     if (host.firstChild) return;
-    host.innerHTML = '<p class="note">画像を複数渡すと、文字の配置に合わせて後ろに出します。「演出を変える」で、本編の見せ方と、歌詞が終わったあとの装飾・拍・曲名の出し方も替わります。</p>'
+    host.innerHTML = '<p class="note">画像を複数渡すと、文字の配置に合わせて後ろに出します。「切り替えを再提案」は画像を使う歌詞のまとまりを変え、手で調整した配置は残します。「演出を変える」は見せ方と曲の終わり方も替えます。</p>'
       + '<div class="row"><button type="button" class="ghost autoimg-pick">画像を渡す</button>'
+      + '<button type="button" class="ghost autoimg-regroup" title="画像はそのまま、歌詞に合わせた切り替え位置を変える">切り替えを再提案</button>'
+      + '<button type="button" class="ghost autoimg-prev" title="前の画像切り替え案に戻す（最大10案）">前の案</button>'
       + '<button type="button" class="ghost autoimg-roll">演出を変える</button>'
       + '<button type="button" class="ghost autoimg-clear">自動の画像を消す</button></div>'
       + '<p class="autoimg-status muted"></p>'
@@ -370,6 +529,14 @@ function mount() {
       const files = [...e.target.files];
       e.target.value = '';
       useFiles(files);
+    });
+    host.querySelector('.autoimg-regroup').addEventListener('click', () => {
+      const project = getProject && getProject();
+      if (J.autoimgRegroup(project) && onChange) onChange();
+    });
+    host.querySelector('.autoimg-prev').addEventListener('click', () => {
+      const project = getProject && getProject();
+      if (J.autoimgPrevious(project) && onChange) onChange();
     });
     host.querySelector('.autoimg-roll').addEventListener('click', () => {
       const project = getProject && getProject();

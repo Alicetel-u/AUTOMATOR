@@ -10,23 +10,64 @@ const bc = (() => { try { return new BroadcastChannel('jizura'); } catch (e) { r
 function readProject() {
   let raw = null;
   try { raw = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
-  if (!raw || typeof raw.lyrics !== 'string') raw = J.defaultProject();
+  if (!raw || typeof raw.lyrics !== 'string') raw = Object.assign(J.defaultProject(), raw || {});
   if (!Array.isArray(raw.clips)) raw.clips = [];
   if (!raw.clips.length && raw.characterName) {
     const c = raw.character || {};
     raw.clips = [{ id: 'legacy', place: c.place === 'front' ? 'front' : 'back', name: raw.characterName, kind: 'image', start: 0, trim: 0, dur: 86400, x: c.x, y: c.y, s: c.s }];
   }
-  raw.clips = raw.clips.slice(0, 8);
+  raw.clips = raw.clips.slice(0, 64);
+  if (!raw.cutEdits || typeof raw.cutEdits !== 'object') raw.cutEdits = {};
   return raw;
 }
 function writeClips() {
   let raw = {};
   try { raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}') || {}; } catch (e) {}
   raw.clips = E.project.clips;
+  raw.cutEdits = E.project.cutEdits;
+  if (raw.autoimg && E.project.autoimg && raw.autoimg.seed === E.project.autoimg.seed) {
+    raw.autoimg.shots = E.project.autoimg.shots || {};
+    raw.autoimg.fills = E.project.autoimg.fills || [];
+  }
   delete raw.character; delete raw.characterName;
   localStorage.setItem(LS_KEY, JSON.stringify(raw));
   if (E.plan) E.plan.clips = E.project.clips;
+  if (E.plan) { E.plan.cutEdits = E.project.cutEdits; E.plan.autoimg = E.project.autoimg; }
+  if ($('msg')) $('msg').textContent = '配置を保存しました';
   if (bc) bc.postMessage({ type: 'clips' });
+}
+function autoShots() { return J.autoimgShots ? J.autoimgShots(E.plan) : []; }
+function selectedAuto() {
+  if (!E.selected || !E.selected.startsWith('auto:')) return null;
+  return autoShots().find(s => s.index === +E.selected.slice(5)) || null;
+}
+function selectedCut() {
+  if (!E.selected || !E.selected.startsWith('cut:')) return null;
+  return (E.plan.cuts || []).find(c => c.editKey === E.selected.slice(4)) || null;
+}
+function saveAuto(shot, values) {
+  if (!E.project.autoimg) return;
+  if (shot.fill) {
+    const fills = E.project.autoimg.fills || (E.project.autoimg.fills = []);
+    fills[shot.fillIndex] = Object.assign({}, fills[shot.fillIndex] || {}, values, { locked: true });
+    E.plan.autoimg = E.project.autoimg;
+    return;
+  }
+  const shots = E.project.autoimg.shots || (E.project.autoimg.shots = {});
+  const key = 't' + Math.round(shot.base * 1000);
+  const legacy = shots[shot.index];
+  shots[key] = Object.assign({ base: shot.base, start: shot.start, dur: shot.end - shot.start, image: shot.image, x: shot.x, y: shot.y, s: shot.s },
+    shots[key] || (legacy && Math.abs((+legacy.base || 0) - shot.base) < 0.1 ? legacy : {}), values, { base: shot.base });
+  if (legacy && Math.abs((+legacy.base || 0) - shot.base) < 0.1) delete shots[shot.index];
+  E.plan.autoimg = E.project.autoimg;
+}
+function cutEdit(cut) {
+  const saved = E.project.cutEdits[cut.editKey];
+  return saved && saved.text === cut.text ? saved : { text: cut.text, x: 0.5, y: 0.5, s: 1 };
+}
+function saveCut(cut, values) {
+  E.project.cutEdits[cut.editKey] = Object.assign({}, cutEdit(cut), values, { text: cut.text });
+  E.plan.cutEdits = E.project.cutEdits;
 }
 function audioLike() {
   if (!E.audio) return null;
@@ -176,8 +217,9 @@ function draw() {
   E.renderer.frame(ctx, E.plan, E.t, { scale: c.width / E.plan.W, fast: E.playing });
   const clip = E.project.clips.find(x => x.id === E.selected);
   const rec = clip && J.clips[clip.id];
-  if (clip && rec && rec.el) {
-    const box = J.characterBox(E.plan, clip, rec.el);
+  const auto = selectedAuto(), cut = selectedCut();
+  if ((clip && rec && rec.el) || auto || cut) {
+    const box = controlBox();
     if (box) {
       const k = c.width / E.plan.W, rect = c.getBoundingClientRect();
       const px = 14 * E.plan.W / Math.max(1, rect.width);
@@ -196,12 +238,36 @@ function draw() {
   }
   const info = $('clipInfo');
   if (info) {
-    if (!clip) info.textContent = '';
-    else {
+    if (auto) info.textContent = J.fmtTime(auto.start) + ' – ' + J.fmtTime(auto.end) + (auto.fill ? ' · 補完画像' : ' · 自動画像');
+    else if (cut) info.textContent = J.fmtTime(cut.start) + ' – ' + J.fmtTime(cut.end) + ' · 歌詞カット';
+    else if (clip) {
       const end = clip.start + clip.dur;
       info.textContent = J.fmtTime(clip.start) + ' – ' + J.fmtTime(end) + (clip.kind === 'video' ? '  ソース ' + J.fmtTime(clip.trim || 0) : '');
-    }
+    } else info.textContent = '';
   }
+  $('shotImage').hidden = !auto;
+  $('btnResetPosition').hidden = !auto && !cut;
+  $('btnDelete').disabled = !clip && !(auto && auto.fill);
+}
+function controlBox() {
+  const clip = E.project.clips.find(x => x.id === E.selected);
+  const rec = clip && J.clips[clip.id];
+  if (rec && rec.el) return J.characterBox(E.plan, clip, rec.el);
+  const auto = selectedAuto(), cut = selectedCut();
+  if (!auto && !cut) return null;
+  if (auto && J.autoimgBox) return J.autoimgBox(E.plan, auto);
+  const e = auto || cutEdit(cut);
+  const zone = cut && cut.zone ? cut.zone : { x: 0, y: 0, w: E.plan.W, h: E.plan.H };
+  const w = zone.w * 0.44 * e.s, h = zone.h * 0.44 * e.s;
+  return { x: zone.x + e.x * zone.w - w / 2, y: zone.y + e.y * zone.h - h / 2, w, h };
+}
+function refreshShotPicker() {
+  const shot = selectedAuto(), select = $('shotImage');
+  if (!shot) { select.hidden = true; return; }
+  const names = E.project.autoimg && E.project.autoimg.names || [];
+  select.innerHTML = names.map((name, i) => `<option value="${i}">${escapeHtml(name)}</option>`).join('');
+  select.value = String(shot.image);
+  select.hidden = false;
 }
 function size() {
   const stage = $('stage'), c = $('view');
@@ -254,19 +320,28 @@ function renderTimeline() {
   const v = visible();
   const front = lanesOf(E.project.clips.filter(c => c.place === 'front'));
   const back = lanesOf(E.project.clips.filter(c => c.place !== 'front'));
+  const shots = autoShots();
+  const auto = lanesOf(shots.map(s => Object.assign({}, s, { dur: s.end - s.start })));
   const lyricH = 36;
   const laneH = 32;
+  const autoH = shots.length ? 8 + auto.n * laneH : 0;
   const frontH = 8 + front.n * laneH;
   const backH = 8 + back.n * laneH;
   const rulerH = 28;
   const fileBtn = (place, title) => `<button type="button" class="add" data-add="${place}" title="${title}">＋</button>`;
   const clipHtml = (it, h) => {
     const c = it.c;
-    return `<i class="block clip${c.id === E.selected ? ' on' : ''}" data-id="${c.id}" style="${posStyle(c.start, c.dur)};top:${4 + it.lane * h}px"><b class="handle l"></b>${escapeHtml(c.name)}<b class="handle r"></b></i>`;
+    return `<i class="block clip editable${c.id === E.selected ? ' on' : ''}" data-id="${c.id}" style="${posStyle(c.start, c.dur)};top:${4 + it.lane * h}px"><b class="handle l"></b>${escapeHtml(c.name)}<b class="handle r"></b></i>`;
   };
-  const lyrics = (E.plan.lines || []).map(ln => {
-    const d = Math.max(0.05, ln.end - ln.start);
-    return `<i class="block lyric" style="${posStyle(ln.start, d)};top:4px">${escapeHtml(ln.text || '間奏')}</i>`;
+  const lyrics = (E.plan.cuts || []).filter(c => c.text || (c.params && c.params.titleText)).map(c => {
+    const id = 'cut:' + c.editKey;
+    return `<i class="block lyric editable${id === E.selected ? ' on' : ''}" data-id="${id}" style="${posStyle(c.start, c.end - c.start)};top:4px">${escapeHtml(c.text || c.lineText || '間奏')}</i>`;
+  }).join('');
+  const autoHtml = auto.items.map(it => {
+    const s = it.c;
+    const id = 'auto:' + s.index;
+    const name = E.project.autoimg.names[s.image] || '画像';
+    return `<i class="block auto editable${s.fill ? ' filled' : ''}${id === E.selected ? ' on' : ''}" data-id="${id}" title="${s.fill ? '補完画像：ドラッグして調整できます' : '自動配置画像'}" style="${posStyle(s.start, s.end - s.start)};top:${4 + it.lane * laneH}px"><b class="handle l"></b>${s.fill ? '補完 · ' : ''}${escapeHtml(name)}<b class="handle r"></b></i>`;
   }).join('');
   const ticks = [];
   const colW = ($('timeCol') && $('timeCol').clientWidth) || 640;
@@ -281,17 +356,20 @@ function renderTimeline() {
         `<div class="gutter-row gap" style="height:${rulerH}px"></div>` +
         `<div class="gutter-row front" style="height:${frontH}px"><span>文字の前</span>${fileBtn('front', '文字の前に追加')}</div>` +
         `<div class="gutter-row" style="height:${lyricH}px"><span>歌詞</span></div>` +
+        (autoH ? `<div class="gutter-row auto-row" style="height:${autoH}px"><span>自動画像</span></div>` : '') +
         `<div class="gutter-row back" style="height:${backH}px"><span>文字の裏</span>${fileBtn('back', '文字の裏に追加')}</div>` +
       `</div>` +
       `<div class="time" id="timeCol">` +
         `<div class="ruler" id="ruler">${ticks.map(t => `<i class="tick" style="left:${(t - v.t0) / v.dur * 100}%"><span>${tickLabel(t)}</span></i>`).join('')}</div>` +
         `<div class="track front" style="height:${frontH}px">${front.items.map(it => clipHtml(it, laneH)).join('')}</div>` +
         `<div class="track" style="height:${lyricH}px">${lyrics}</div>` +
+        (autoH ? `<div class="track auto-track" style="height:${autoH}px">${autoHtml}</div>` : '') +
         `<div class="track back" style="height:${backH}px">${back.items.map(it => clipHtml(it, laneH)).join('')}</div>` +
         `<div class="marks">${lineMarks()}</div>` +
         `<div class="playhead" id="playhead"><i></i></div>` +
       `</div>` +
     `</div>`;
+  $('btnFillGaps').disabled = !E.project.autoimg || !E.project.autoimg.names || !E.project.autoimg.names.length;
   draw();
 }
 /* the same line-start marks as the original timeline: number, and 間奏. Read-only here. */
@@ -327,16 +405,28 @@ function bindTimeline() {
   const root = $('tracks');
   root.addEventListener('pointerdown', e => {
     if (e.target.closest('.add')) { E.picking = true; return; }
-    const clipEl = e.target.closest('.clip');
+    const clipEl = e.target.closest('.editable');
     if (clipEl) {
-      const c = E.project.clips.find(x => x.id === clipEl.dataset.id);
-      if (!c) return;
-      E.selected = c.id;
+      const id = clipEl.dataset.id;
+      const c = E.project.clips.find(x => x.id === id);
+      const shot = id.startsWith('auto:') ? autoShots().find(s => s.index === +id.slice(5)) : null;
+      const cut = id.startsWith('cut:') ? E.plan.cuts.find(x => x.editKey === id.slice(4)) : null;
+      if (!c && !shot && !cut) return;
+      E.selected = id;
       const mode = e.target.classList.contains('l') ? 'l' : e.target.classList.contains('r') ? 'r' : 'move';
-      const rec = J.clips[c.id];
-      E.drag = { id: c.id, mode, x: e.clientX, start: c.start, dur: c.dur, trim: +c.trim || 0, kind: c.kind, media: rec && rec.mediaDur || 0, width: $('timeCol').getBoundingClientRect().width, span: visible().dur };
-      clipEl.setPointerCapture(e.pointerId);
-      root.querySelectorAll('.clip').forEach(el => el.classList.toggle('on', el.dataset.id === c.id));
+      if (cut) {
+        E.drag = null;
+        seek(cut.start + Math.min(0.2, (cut.end - cut.start) / 2));
+      } else {
+        const rec = c && J.clips[c.id];
+        E.drag = { id, mode, x: e.clientX, start: c ? c.start : shot.start, dur: c ? c.dur : shot.end - shot.start,
+          trim: c ? (+c.trim || 0) : 0, kind: c ? c.kind : 'image', media: rec && rec.mediaDur || 0,
+          width: $('timeCol').getBoundingClientRect().width, span: visible().dur };
+        clipEl.setPointerCapture(e.pointerId);
+        if (shot) seek(shot.start + Math.min(0.2, (shot.end - shot.start) / 2));
+      }
+      root.querySelectorAll('.editable').forEach(el => el.classList.toggle('on', el.dataset.id === id));
+      refreshShotPicker();
       draw();
       return;
     }
@@ -347,12 +437,16 @@ function bindTimeline() {
   root.addEventListener('pointermove', e => {
     if (!E.drag || E.drag.preview) return;
     if (E.drag.scrub) { seek(tAt(e)); return; }
-    const c = E.project.clips.find(x => x.id === E.drag.id); if (!c) return;
+    const c = E.project.clips.find(x => x.id === E.drag.id);
+    const shot = E.drag.id.startsWith('auto:') ? autoShots().find(s => s.index === +E.drag.id.slice(5)) : null;
+    if (!c && !shot) return;
     const dt = (e.clientX - E.drag.x) / Math.max(1, E.drag.width) * E.drag.span;
-    applyClipEdit(c, E.drag, dt, E.plan.duration, E.drag.media);
+    const target = c || { start: E.drag.start, dur: E.drag.dur, trim: 0 };
+    applyClipEdit(target, E.drag, dt, E.plan.duration, E.drag.media);
+    if (shot) saveAuto(shot, { start: target.start, dur: target.dur });
     E.plan.clips = E.project.clips;
-    const el = root.querySelector('.clip[data-id="' + c.id + '"]');
-    if (el) placeClipEl(el, c);
+    const el = root.querySelector('.editable[data-id="' + E.drag.id + '"]');
+    if (el) placeClipEl(el, target);
     draw();
   });
   const end = () => {
@@ -392,26 +486,37 @@ function bindPreview() {
   const c = $('view');
   c.addEventListener('pointerdown', e => {
     const clip = E.project.clips.find(x => x.id === E.selected);
-    const rec = clip && J.clips[clip.id];
-    if (!clip || !rec) return;
-    const box = J.characterBox(E.plan, clip, rec.el); if (!box) return;
+    const shot = selectedAuto(), cut = selectedCut();
+    if (!clip && !shot && !cut) return;
+    const box = controlBox(); if (!box) return;
     const p = viewPoint(e);
     const hs = 18 * E.plan.W / Math.max(1, c.getBoundingClientRect().width);
     const scale = Math.abs(p.x - (box.x + box.w)) <= hs && Math.abs(p.y - (box.y + box.h)) <= hs;
-    const inside = p.x >= box.x && p.x <= box.x + box.w && p.y >= box.y && p.y <= box.y + box.h;
+    const inside = (p.x >= box.x && p.x <= box.x + box.w && p.y >= box.y && p.y <= box.y + box.h) ||
+      (!!cut && p.x >= 0 && p.x <= E.plan.W && p.y >= 0 && p.y <= E.plan.H);
     if (!scale && !inside) return;
     e.preventDefault();
     c.setPointerCapture(e.pointerId);
-    E.drag = { preview: true, mode: scale ? 'scale' : 'move', px: p.x, py: p.y, ox: clip.x, oy: clip.y, os: clip.s, cx: box.x + box.w / 2, cy: box.y + box.h / 2, dist: Math.max(8, Math.hypot(p.x - (box.x + box.w / 2), p.y - (box.y + box.h / 2))) };
+    const item = clip || shot || cutEdit(cut);
+    const zone = cut && cut.zone ? cut.zone : { w: E.plan.W, h: E.plan.H };
+    E.drag = { preview: true, mode: scale ? 'scale' : 'move', px: p.x, py: p.y, ox: item.x, oy: item.y, os: item.s,
+      zw: zone.w, zh: zone.h, cx: box.x + box.w / 2, cy: box.y + box.h / 2,
+      dist: Math.max(8, Math.hypot(p.x - (box.x + box.w / 2), p.y - (box.y + box.h / 2))) };
   });
   c.addEventListener('pointermove', e => {
     if (!E.drag || !E.drag.preview) return;
-    const clip = E.project.clips.find(x => x.id === E.selected); if (!clip) return;
+    const clip = E.project.clips.find(x => x.id === E.selected);
+    const shot = selectedAuto(), cut = selectedCut();
+    if (!clip && !shot && !cut) return;
     const p = viewPoint(e);
+    const values = {};
     if (E.drag.mode === 'move') {
-      clip.x = J.clamp(E.drag.ox + (p.x - E.drag.px) / E.plan.W, -1, 2);
-      clip.y = J.clamp(E.drag.oy + (p.y - E.drag.py) / E.plan.H, -1, 2);
-    } else clip.s = J.clamp(E.drag.os * Math.hypot(p.x - E.drag.cx, p.y - E.drag.cy) / E.drag.dist, 0.05, 8);
+      values.x = J.clamp(E.drag.ox + (p.x - E.drag.px) / E.drag.zw, -1, 2);
+      values.y = J.clamp(E.drag.oy + (p.y - E.drag.py) / E.drag.zh, -1, 2);
+    } else values.s = J.clamp(E.drag.os * Math.hypot(p.x - E.drag.cx, p.y - E.drag.cy) / E.drag.dist, clip ? 0.05 : 0.25, clip ? 8 : 3);
+    if (clip) Object.assign(clip, values);
+    else if (shot) saveAuto(shot, values);
+    else saveCut(cut, values);
     draw();
   });
   const end = () => { if (!E.drag || !E.drag.preview) return; E.drag = null; writeClips(); };
@@ -422,7 +527,7 @@ async function addFiles(place, files) {
   E.adding = true;
   try {
   for (const file of files) {
-    if (E.project.clips.length >= 8) { $('msg').textContent = 'クリップは8個までです'; break; }
+    if (E.project.clips.length >= 64) { $('msg').textContent = 'クリップは64個までです'; break; }
     const isVideo = (file.type || '').startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
     const isImage = !isVideo && ((file.type || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|avif|heic|jfif)$/i.test(file.name) || !(file.type || ''));
     if (!isVideo && !isImage) { $('msg').textContent = file.name + ' は画像か動画にしてください'; continue; }
@@ -443,6 +548,12 @@ async function addFiles(place, files) {
   }
 }
 function removeSelected() {
+  const shot = selectedAuto();
+  if (shot && shot.fill && E.project.autoimg && Array.isArray(E.project.autoimg.fills)) {
+    E.project.autoimg.fills.splice(shot.fillIndex, 1);
+    E.selected = null; writeClips(); renderTimeline();
+    return;
+  }
   const i = E.project.clips.findIndex(c => c.id === E.selected);
   if (i < 0) return;
   const id = E.project.clips[i].id;
@@ -481,9 +592,26 @@ async function boot() {
   $('btnPlay').addEventListener('click', () => E.playing ? pause() : play());
   $('btnExport').addEventListener('click', exportMp4);
   $('btnDelete').addEventListener('click', removeSelected);
+  $('shotImage').addEventListener('change', e => {
+    const shot = selectedAuto(); if (!shot) return;
+    saveAuto(shot, { image: +e.target.value }); writeClips(); draw(); renderTimeline();
+  });
+  $('btnResetPosition').addEventListener('click', () => {
+    const shot = selectedAuto(), cut = selectedCut();
+    if (shot) saveAuto(shot, { x: 0.5, y: 0.5, s: 1 });
+    else if (cut) delete E.project.cutEdits[cut.editKey];
+    else return;
+    writeClips(); draw();
+  });
   $('zoomOut').addEventListener('click', () => setZoom(visible().dur * 1.4, E.t));
   $('zoomIn').addEventListener('click', () => setZoom(visible().dur / 1.4, E.t));
   $('zoomFit').addEventListener('click', () => { E.view = null; renderTimeline(); });
+  $('btnFillGaps').addEventListener('click', () => {
+    const count = J.autoimgFillGaps ? J.autoimgFillGaps(E.plan) : 0;
+    E.selected = null;
+    writeClips(); renderTimeline();
+    $('msg').textContent = count ? count + '区間を補完しました' : '埋められる隙間はありません';
+  });
   bindTimeline(); bindPreview();
   const onPicked = (input, place) => {
     const files = [...input.files];
@@ -499,6 +627,7 @@ async function boot() {
     const t = E.t;
     E.project = readProject();
     replan();
+    refreshShotPicker();
     Promise.all([
       loadClips(),
       J.autoimgRestore ? J.autoimgRestore(E.project) : null,   // AUTOIMG

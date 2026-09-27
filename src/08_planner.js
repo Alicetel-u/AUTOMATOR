@@ -26,6 +26,7 @@ J.defaultProject = () => ({
   centerDir: 'tb',                // 中央を空ける on tall frames: 'tb' = top / bottom, 'lr' = left / right
   centerFree: false,              // 中央を空ける: lay the cuts out in side bands (left / right or top / bottom) around a character
   clips: [],                      // pictures placed in the editor window: behind or in front of the lyrics
+  cutEdits: {},                   // placement of generated lyric cuts, keyed by line and cut number
   seed: 20260922,
   aspect: '16:9', res: 1080, fps: 24,
   fx: { motion: 0.7, glitch: 0.55, chroma: 0.7, decor: 0.5, density: 0.55, texture: 0.6, flash: true, onTwos: true, koma: 12, hud: 'auto', bgSwitch: 0.35 },
@@ -243,6 +244,7 @@ J.plan = (project, audio) => {
     hud: fx.hud === 'on' ? true : fx.hud === 'off' ? false : !!st.hud,
     keyBg: J.keyMode ? J.keyMode(project) : null,   // 'green' | 'black' | null — 合成用の背景
     clips: project.clips || [],
+    cutEdits: project.cutEdits || {},
     autoimg: project.autoimg || null,   // AUTOIMG
     outroId: J.outroIdFor ? J.outroIdFor(project) : null,   // AUTOIMG ending pattern
     centerFree: !!zones, zones,
@@ -571,8 +573,12 @@ J.plan = (project, audio) => {
     }
   }
   plan.cuts.sort((a, b) => a.start - b.start);
+  const cutNumbers = {};
   plan.cuts.forEach((c, i) => {
     c.index = i;
+    const n = cutNumbers[c.line] || 0;
+    cutNumbers[c.line] = n + 1;
+    c.editKey = c.line + ':' + n;
     if (!zones || c.zone) return;
     if (c.layout === 'interlude') { if (c.line !== -2) c.params = Object.assign({}, c.params, { showTitle: false }); return; }   // no lyric: the whole frame. The ending cut keeps its title.
     c.zone = zoneOf(c.line);
