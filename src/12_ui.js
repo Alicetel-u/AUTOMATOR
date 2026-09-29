@@ -174,12 +174,15 @@ function mergeProject(p) {
   const axis = (v, d) => Number.isFinite(+v) ? J.clamp(+v, -1, 2) : d;
   const cleanClip = (c) => ({
     id: String(c.id).slice(0, 40),
+    ...(typeof c.sourceId === 'string' && /^[\w-]+$/.test(c.sourceId) ? { sourceId: c.sourceId.slice(0, 40) } : {}),
     place: c.place === 'front' ? 'front' : 'back',
     name: String(c.name || '').slice(0, 180),
     kind: c.kind === 'video' ? 'video' : 'image',
     start: Math.max(0, +c.start || 0),
     trim: Math.max(0, +c.trim || 0),
     dur: Math.max(0.1, +c.dur || 0.1),
+    transition: ['dissolve', 'flash', 'wipe', 'slide', 'zoom', 'glitch'].includes(c.transition) ? c.transition : 'none',
+    transDur: J.clamp(+c.transDur || 0.4, 0.1, 1.5),
     x: axis(c.x, 0.5), y: axis(c.y, 0.5),
     s: Number.isFinite(+c.s) ? J.clamp(+c.s, 0.05, 8) : 1,
   });
@@ -349,7 +352,9 @@ function tick(now) {
     syncClips(true);
     followTlPlayhead();
   }
-  if (S.need) { S.need = false; draw(); }
+  if (S.need && (!S.playing || !S.project.clips.some(c => c.kind === 'video') || now - (S.lastDrawAt || 0) >= 1000 / 30)) {
+    S.need = false; S.lastDrawAt = now; draw();
+  }
 }
 function updateTimeUI() {
   $('timeNow').textContent = J.fmtTime(S.t);
@@ -1535,25 +1540,36 @@ function updateTap() {
 function syncClips(playing) {
   const clips = (S.project && S.project.clips) || [];
   const span = S.plan ? S.plan.duration : 0;
+  const held = J.clipHeldFrames(clips, S.t);
   for (const c of clips) {
     const rec = J.clips && J.clips[c.id];
     if (!rec || rec.kind !== 'video' || !(rec.el.duration > 0)) continue;
     const v = rec.el;
     const dur = Math.min(Math.max(0.05, +c.dur || span), Math.max(0.05, span - (+c.start || 0)));
     const active = S.t >= (+c.start || 0) && S.t < (+c.start || 0) + dur;
-    const local = (+c.trim || 0) + (S.t - (+c.start || 0));
-    if (!active || !playing || (v.duration && local >= v.duration - 0.05)) {
+    const hold = held.has(c.id);
+    const local = hold ? held.get(c.id) : (+c.trim || 0) + (S.t - (+c.start || 0));
+    if ((!active && !hold) || !playing || hold || (v.duration && local >= v.duration - 0.05)) {
       v.pause();
-      if (active && Math.abs((v.currentTime || 0) - local) > 0.045) {
+      if ((active || hold) && Math.abs((v.currentTime || 0) - local) > 0.045) {
         try { v.currentTime = Math.min(Math.max(0, local), Math.max(0, v.duration - 0.04)); } catch (e) {}
       }
       continue;
     }
     if (v.paused) {
-      try { v.currentTime = Math.max(0, local); } catch (e) {}
-      const p = v.play(); if (p && p.catch) p.catch(() => {});
-    } else if (Math.abs(v.currentTime - local) > 0.2) {
-      try { v.currentTime = Math.max(0, local); } catch (e) {}
+      if (rec.playPending) continue;
+      if (!v.seeking && Math.abs(v.currentTime - local) > 0.1) {
+        try { v.currentTime = Math.max(0, local); rec.lastSeek = performance.now(); } catch (e) {}
+      }
+      try {
+        const p = v.play();
+        if (p && p.then) {
+          rec.playPending = true;
+          p.then(() => { rec.playPending = false; }, () => { rec.playPending = false; });
+        }
+      } catch (e) {}
+    } else if (!v.seeking && Math.abs(v.currentTime - local) > 0.5 && performance.now() - (rec.lastSeek || 0) > 1000) {
+      try { v.currentTime = Math.max(0, local); rec.lastSeek = performance.now(); } catch (e) {}
     }
   }
 }
@@ -1564,13 +1580,13 @@ function dropClipEl(id) {
   if (rec.el) { if (rec.el.pause) rec.el.pause(); if (rec.el.remove) rec.el.remove(); }
   delete J.clips[id];
 }
-async function attachClipFile(clip, file) {
+async function attachClipFile(clip, file, preview = false) {
   const isVideo = (file.type || '').startsWith('video/') || /\.(mp4|webm|mov|m4v|ogv)$/i.test(file.name);
   const url = URL.createObjectURL(file);
   const el = isVideo ? document.createElement('video') : new Image();
   if (isVideo) {
     el.muted = true; el.defaultMuted = true; el.playsInline = true; el.preload = 'auto'; el.volume = 0;
-    el.style.cssText = 'position:fixed;width:1px;height:1px;left:0;top:0;opacity:0;pointer-events:none';
+    el.style.cssText = 'position:fixed;width:2px;height:2px;left:0;top:0;opacity:0.01;pointer-events:none';
     document.body.appendChild(el);
   }
   try {
@@ -1581,7 +1597,7 @@ async function attachClipFile(clip, file) {
     });
   } catch (e) { URL.revokeObjectURL(url); if (el.remove) el.remove(); return false; }
   dropClipEl(clip.id);
-  J.clips[clip.id] = { el, url, kind: isVideo ? 'video' : 'image', name: file.name, mediaDur: isVideo ? el.duration : 0 };
+  J.clips[clip.id] = { el, url, kind: isVideo ? 'video' : 'image', name: file.name, originalName: clip.name, mediaDur: isVideo ? el.duration : 0, preview };
   return true;
 }
 async function loadProjectClips() {
@@ -1592,11 +1608,17 @@ async function loadProjectClips() {
   const clips = (S.project && S.project.clips) || [];
   const keep = new Set(clips.map(c => c.id));
   for (const id of Object.keys(J.clips || {})) if (!keep.has(id)) dropClipEl(id);
+  const files = new Map();
   for (const c of clips) {
     const have = J.clips[c.id];
-    if (have && have.name === c.name) continue;
-    const f = await J.loadClipFile(c.id);
-    if (f) await attachClipFile(c, f);
+    const id = c.sourceId || c.id;
+    if (!files.has(id)) {
+      const preview = c.kind === 'video' ? await J.loadClipPreviewFile(id) : null;
+      files.set(id, { preview, file: preview || await J.loadClipFile(id) });
+    }
+    const { preview, file } = files.get(id);
+    if (have && have.originalName === c.name && have.preview === !!preview && (!preview || have.name === preview.name)) continue;
+    if (file) await attachClipFile(c, file, !!preview);
   }
   if (S.plan) S.plan.clips = clips;
   S.need = true;

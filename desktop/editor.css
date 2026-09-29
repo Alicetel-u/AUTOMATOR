@@ -8,6 +8,10 @@ header p { margin: 0; color: var(--muted); font-size: 12px; }
 .stage { flex: 1; min-height: 180px; display: flex; align-items: center; justify-content: center; background: #0c0c0e; }
 canvas#view { background: #000; max-width: 100%; max-height: 100%; }
 .transport { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--line); }
+.clip-transition-controls { display: flex; align-items: center; gap: 12px; padding: 6px 14px; border-top: 1px solid var(--line); font-size: 12px; }
+.clip-transition-controls[hidden] { display: none; }
+.clip-transition-controls label { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.clip-transition-controls input[type="number"] { width: 64px; padding: 5px; background: #232329; color: var(--text); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
 .outro-controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:8px 14px; border-top:1px solid var(--line); font-size:12px; }
 button, .file { background: #232329; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
 button.primary { background: var(--amber); color: #1a1200; border-color: transparent; font-weight: 700; }
@@ -19,6 +23,8 @@ select { background: #232329; color: var(--text); border: 1px solid var(--line);
 .tl { padding: 8px 14px 16px; user-select: none; }
 .tl-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
 .tl-bar button { min-width: 36px; padding: 4px 8px; }
+.snap-toggle { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; color: var(--text); cursor: pointer; }
+.snap-toggle input { margin: 0; accent-color: var(--amber); }
 .tl-bar #btnFillGaps { color: #cad5ff; border-color: #5667a0; }
 .sheet { display: flex; border: 1px solid var(--line); border-radius: 6px; background: #141418; overflow: hidden; }
 .gutter { width: 112px; flex: none; background: #121216; border-right: 1px solid var(--line); }
@@ -44,6 +50,7 @@ select { background: #232329; color: var(--text); border: 1px solid var(--line);
 .track.front .clip { background: #14584f; }
 .track.back .clip { background: #6a3148; }
 .clip.on { border-color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber); }
+.transition-mark { color: #8feaff; margin-right: 5px; font-style: normal; }
 .handle { position: absolute; top: 0; width: 10px; height: 100%; cursor: ew-resize; z-index: 2; }
 .handle.l { left: 0; }
 .handle.r { right: 0; }
@@ -60,5 +67,8 @@ select { background: #232329; color: var(--text); border: 1px solid var(--line);
 .playhead { position: absolute; top: 0; bottom: 0; width: 0; z-index: 4; pointer-events: none; }
 .playhead i { position: absolute; top: 0; left: -7px; width: 14px; height: 16px; background: var(--amber); clip-path: polygon(0 0, 100% 0, 50% 100%); pointer-events: auto; cursor: ew-resize; }
 .playhead::after { content: ''; position: absolute; top: 14px; bottom: 0; left: -1px; width: 2px; background: var(--amber); }
+.snap-guide { position: absolute; top: 0; bottom: 0; width: 1px; background: #6bdcff; box-shadow: 0 0 5px #6bdcff; pointer-events: none; z-index: 5; }
+.snap-guide[hidden] { display: none; }
+.snap-guide span { position: absolute; top: 2px; left: 5px; padding: 1px 4px; border-radius: 3px; background: #174050; color: #dcfaff; font-size: 10px; white-space: nowrap; }
 #view.moving { cursor: grab; }
 #view.scaling { cursor: nwse-resize; }

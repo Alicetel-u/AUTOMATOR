@@ -123,6 +123,7 @@ J.exportMP4 = async (o) => {
   const attempts = await J.videoAttempts(w, h, fps, bitrate);
   if (!attempts.length) throw new Error('このブラウザは動画エンコード（WebCodecs）に対応していません。Chrome か Edge の最新版で開いてください。');
   const tried = [];
+  try {
   for (let k = 0; k < attempts.length; k++) {
     const vc = attempts[k];
     try {
@@ -138,6 +139,7 @@ J.exportMP4 = async (o) => {
   }
   const err = new Error('MP4 を書き出せませんでした。' + (file ? '' : '「大きな動画用（ファイルに直接保存）」か、') + '解像度・fps・画質を下げて試してください。詳細：' + tried.join(' ／ '));
   err.detail = tried; throw err;
+  } finally { if (J.releaseExportClipMedia) J.releaseExportClipMedia(); }
 };
 async function encodeMP4({ plan, project, audio, onProgress, signal, range, file, w, h, vc, note }) {
   const span = J.exportSpan(plan, range);
@@ -167,7 +169,7 @@ async function encodeMP4({ plan, project, audio, onProgress, signal, range, file
       if (venc.state === 'closed') throw new Error('エンコーダーが停止しました');
       const ft = span.t0 + i / fps;
       if (!plan.keyBg && J.prepareClips) await J.prepareClips(ft, plan.clips);
-      R.frame(ctx, plan, ft, { scale });
+      R.frame(ctx, plan, ft, { scale, exportMedia: true });
       const vf = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
       try { venc.encode(vf, { keyFrame: i % (fps * 2) === 0 }); } finally { vf.close(); }
       let spins = 0;
@@ -252,12 +254,13 @@ J.exportPNGZip = async ({ plan, project, transparent, layers, onProgress, signal
   const fps = plan.fps, total = Math.max(1, Math.round(span.dur * fps));
   const zip = new ZipWriter();
   const scale = w / plan.W;
+  try {
   for (let i = 0; i < total; i += every) {
     if (signal && signal.aborted) throw new Error('キャンセルしました');
     if (!transparent && !layers && J.prepareClips) await J.prepareClips(span.t0 + i / fps, plan.clips);
     const name = `jizura_${String(i).padStart(5, '0')}.png`;
     for (const layer of layers ? ['back', 'front'] : [null]) {
-      R.frame(ctx, plan, span.t0 + i / fps, { scale, transparent: transparent || !!layers, layer });
+      R.frame(ctx, plan, span.t0 + i / fps, { scale, transparent: transparent || !!layers, layer, exportMedia: true });
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       zip.add((layer ? layer + '/' : '') + name, new Uint8Array(await blob.arrayBuffer()));
     }
@@ -265,6 +268,7 @@ J.exportPNGZip = async ({ plan, project, transparent, layers, onProgress, signal
   }
   onProgress && onProgress(1, '完了');
   return zip.finish();
+  } finally { if (J.releaseExportClipMedia) J.releaseExportClipMedia(); }
 };
 
 /* ---------- plan JSON for the After Effects panel ---------- */

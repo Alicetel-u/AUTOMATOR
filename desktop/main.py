@@ -51,7 +51,7 @@ class DesktopApi:
                 self.editor = None
         window = webview.create_window(
             'JIZURA 配置',
-            f'http://127.0.0.1:{PORT}/desktop/editor.html',
+            f'http://127.0.0.1:{PORT}/desktop/editor.html?v={int((repo_root() / "desktop" / "editor.html").stat().st_mtime)}',
             width=1280,
             height=820,
             min_size=(960, 640),

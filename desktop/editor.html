@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JIZURA 配置</title>
-<link rel="stylesheet" href="/desktop/editor.css">
+<link rel="stylesheet" href="/desktop/editor.css?v=transition-1">
 </head>
 <body>
 <header>
@@ -21,25 +21,43 @@
 <div class="transport">
   <button id="btnPlay" type="button">&#9654;</button>
   <span class="tc" id="time">00:00.00 / 00:00.00</span>
+  <button id="btnSplit" type="button" title="選択した動画を再生位置で前半と後半に分割します">再生位置で分割</button>
   <button id="btnDelete" type="button">削除</button>
+  <button id="btnReplace" type="button" title="元動画は書き出し用に残し、軽い動画をプレビューだけに使います">軽量プレビューを選ぶ</button>
   <span class="tc muted" id="clipInfo"></span>
   <select id="shotImage" title="自動配置画像を選択" hidden></select>
   <button id="btnResetPosition" type="button" hidden>位置を戻す</button>
   <button id="btnExport" class="primary" type="button">MP4を書き出す</button>
   <span id="msg"></span>
 </div>
+<div class="clip-transition-controls" id="clipTransitionControls" hidden>
+  <label>切替効果 <select id="clipTransition">
+    <option value="none">なし（カット）</option>
+    <option value="dissolve">クロスフェード</option>
+    <option value="flash">フラッシュ</option>
+    <option value="wipe">左からワイプ</option>
+    <option value="slide">スライド</option>
+    <option value="zoom">ズーム</option>
+    <option value="glitch">グリッチ</option>
+  </select></label>
+  <label>長さ <input id="clipTransDuration" type="number" min="0.1" max="1.5" step="0.05" value="0.4"> 秒</label>
+  <button id="btnPreviewTransition" type="button">切替を再生</button>
+  <span class="muted">選択したクリップが始まる位置に適用</span>
+</div>
 <div class="tl">
   <div class="tl-bar">
     <button type="button" id="zoomOut" title="縮小">−</button>
     <button type="button" id="zoomFit" title="全体を表示">全体</button>
     <button type="button" id="zoomIn" title="拡大">＋</button>
+    <label class="snap-toggle" title="再生位置とほかのクリップの端に吸着します。ドラッグ中はShiftで一時的に解除"><input id="snapClips" type="checkbox" checked> 吸着</label>
     <button type="button" id="btnFillGaps" title="手で調整した配置は残し、未使用の画像から隙間を埋めます">隙間を自動で埋める</button>
-    <span class="muted">ホイールで左右、Ctrl+ホイールで拡大</span>
+    <span class="muted">Shift+ドラッグで吸着解除 · ホイールで左右、Ctrl+ホイールで拡大 · Deleteで削除、Ctrl+Zで戻す、Ctrl+C/Vでコピー・貼り付け</span>
   </div>
   <div id="tracks"></div>
 </div>
 <input id="addFront" class="picker" type="file" accept="image/*,video/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.avif,.heic,.jfif,.mp4,.webm,.mov" multiple>
 <input id="addBack" class="picker" type="file" accept="image/*,video/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.avif,.heic,.jfif,.mp4,.webm,.mov" multiple>
+<input id="replaceClip" class="picker" type="file" accept="video/*,.mp4,.webm,.mov">
 <script src="/vendor/mp4-muxer.min.js"></script>
 <script src="/src/01_util.js"></script>
 <script src="/src/02_fonts.js"></script>
@@ -52,10 +70,10 @@
 <script src="/src/07_decor.js"></script>
 <script src="/src/08_planner.js"></script>
 <script src="/src/08b_omakase.js"></script>
-<script src="/src/09_render.js"></script>
+<script src="/src/09_render.js?v=transition-1"></script>
 <script src="/src/09b_autoimg.js"></script>
-<script src="/src/10_audio.js"></script>
-<script src="/src/11_export.js"></script>
+<script src="/src/10_audio.js?v=transition-1"></script>
+<script src="/src/11_export.js?v=preview-2"></script>
 <script src="/src/11p_astra.js"></script>
 <script src="/src/11p_astra_outro.js"></script>
 <script src="/src/11p_bgcamB.js"></script>
@@ -86,6 +104,6 @@
 <script src="/src/11q_sets.js"></script>
 <script src="/src/11r_astra_policy.js"></script>
 <script src="/src/11s_outro_ui.js"></script>
-<script src="/desktop/editor.js"></script>
+<script src="/desktop/editor.js?v=transition-1"></script>
 </body>
 </html>

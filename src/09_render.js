@@ -27,6 +27,31 @@ J.characterBox = (plan, c, media) => {
   const x = Number.isFinite(+c.x) ? +c.x : 0.5, y = Number.isFinite(+c.y) ? +c.y : 0.5;
   return { x: x * plan.W - w / 2, y: y * plan.H - h / 2, w, h };
 };
+const CLIP_TRANSITIONS = new Set(['dissolve', 'flash', 'wipe', 'slide', 'zoom', 'glitch']);
+J.clipTransitionAt = (clips, clip, t) => {
+  if (!CLIP_TRANSITIONS.has(clip.transition)) return null;
+  const start = +clip.start || 0, length = Math.max(0, +clip.dur || 0);
+  const duration = Math.min(J.clamp(+clip.transDur || 0.4, 0.1, 1.5), length * 0.8);
+  if (duration <= 0 || t < start || t >= start + duration) return null;
+  let previous = null;
+  for (const other of clips) {
+    if (other.id === clip.id || (other.place === 'front') !== (clip.place === 'front')) continue;
+    const otherStart = +other.start || 0, otherEnd = otherStart + (+other.dur || 0);
+    if (otherStart >= start - 0.001 || otherEnd < start - 0.06) continue;
+    if (!previous || otherStart > (+previous.start || 0)) previous = other;
+  }
+  return { kind: clip.transition, start, duration, p: J.clamp((t - start) / duration), previous };
+};
+J.clipHeldFrames = (clips, t) => {
+  const held = new Map();
+  for (const clip of clips || []) {
+    const transition = J.clipTransitionAt(clips, clip, t), previous = transition && transition.previous;
+    if (previous && t >= (+previous.start || 0) + (+previous.dur || 0)) {
+      held.set(previous.id, (+previous.trim || 0) + Math.max(0, (+previous.dur || 0) - 0.04));
+    }
+  }
+  return held;
+};
 
 class Renderer {
   constructor() {
@@ -134,7 +159,7 @@ class Renderer {
     }
     if (!key && !opt.transparent && !opt.noCharacter) {
       if (J.autoimgDraw) J.autoimgDraw(ctx, plan, scale, t);   // AUTOIMG
-      this.drawClips(ctx, plan, scale, 'back', t);
+      this.drawClips(ctx, plan, scale, 'back', t, opt.exportMedia);
     }
     const shx = J.rs(step, 71) * shake * 16 * u, shy = J.rs(step, 72) * shake * 11 * u;
     // ---------- content passes ----------
@@ -220,7 +245,7 @@ class Renderer {
       const k = J.clamp(mlt / MC.morph.dur), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       this.drawMorph(ctx, L, e, allowFilter);
     }
-    if (!key && !opt.transparent && !opt.noCharacter) this.drawClips(ctx, plan, scale, 'front', t);
+    if (!key && !opt.transparent && !opt.noCharacter) this.drawClips(ctx, plan, scale, 'front', t, opt.exportMedia);
     // ---------- cut-to-cut transition: composite the previous cut's resting frame with this one ----------
     if (!opt.noTrans && mainCut && mainCut.trans && J.TRANS[mainCut.trans] && mainCut.index > 0) {
       const lt = tq - mainCut.start, dur = mainCut.transDur || 0.35;
@@ -248,20 +273,51 @@ class Renderer {
   }
 
   /* clips sit in screen space: 'back' under the lyrics, 'front' over them and under the transitions */
-  drawClips(ctx, plan, scale, place, t) {
-    const list = plan.clips || [];
+  drawClips(ctx, plan, scale, place, t, exportMedia) {
+    const list = (plan.clips || []).filter(c => (c.place === 'front' ? 'front' : 'back') === place)
+      .slice().sort((a, b) => (+a.start || 0) - (+b.start || 0));
     const span = Math.max(0.05, plan.duration || 0);
+    const transitions = new Map(), held = new Set();
+    for (const c of list) {
+      const state = J.clipTransitionAt(list, c, t);
+      if (!state) continue;
+      transitions.set(c.id, state);
+      if (state.previous && t >= (+state.previous.start || 0) + (+state.previous.dur || 0)) held.add(state.previous.id);
+    }
     ctx.save();
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
     for (const c of list) {
-      if ((c.place === 'front' ? 'front' : 'back') !== place) continue;
       const dur = Math.min(Math.max(0.05, +c.dur || span), Math.max(0.05, span - (+c.start || 0)));
-      if (t < (+c.start || 0) || t >= (+c.start || 0) + dur) continue;
-      const media = J.clips && J.clips[c.id] && J.clips[c.id].el;
+      if ((t < (+c.start || 0) || t >= (+c.start || 0) + dur) && !held.has(c.id)) continue;
+      const rec = J.clips && J.clips[c.id];
+      const media = rec && (exportMedia && rec.exportEl || rec.el);
       const box = J.characterBox(plan, c, media);
       if (!box) continue;
-      try { ctx.drawImage(media, box.x, box.y, box.w, box.h); } catch (e) {}
+      const state = transitions.get(c.id);
+      ctx.save();
+      if (state) {
+        const p = state.p * state.p * (3 - 2 * state.p);
+        if (state.kind === 'wipe') { ctx.beginPath(); ctx.rect(0, 0, plan.W * p, plan.H); ctx.clip(); }
+        else if (state.kind === 'slide') ctx.translate((1 - p) * plan.W, 0);
+        else if (state.kind === 'dissolve' || state.kind === 'flash' || state.kind === 'zoom' || state.kind === 'glitch') ctx.globalAlpha = p;
+        if (state.kind === 'glitch') ctx.translate((1 - p) * Math.sin(Math.floor(t * 24) * 17) * plan.W * 0.045, 0);
+        if (state.kind === 'zoom') {
+          const z = 1 + (1 - p) * 0.28;
+          const w = box.w * z, h = box.h * z;
+          try { ctx.drawImage(media, box.x + (box.w - w) / 2, box.y + (box.h - h) / 2, w, h); } catch (e) {}
+        } else { try { ctx.drawImage(media, box.x, box.y, box.w, box.h); } catch (e) {} }
+        if (state.kind === 'flash') {
+          ctx.globalAlpha = Math.max(0, 1 - Math.abs(state.p - 0.42) / 0.34) * 0.85;
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, plan.W, plan.H);
+        }
+        if (state.kind === 'glitch') {
+          ctx.globalAlpha = (1 - state.p) * 0.18;
+          ctx.globalCompositeOperation = 'screen';
+          try { ctx.drawImage(media, box.x - plan.W * 0.015, box.y, box.w, box.h); } catch (e) {}
+        }
+      } else { try { ctx.drawImage(media, box.x, box.y, box.w, box.h); } catch (e) {} }
+      ctx.restore();
     }
     ctx.restore();
   }

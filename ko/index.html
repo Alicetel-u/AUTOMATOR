@@ -4576,6 +4576,31 @@ J.characterBox = (plan, c, media) => {
   const x = Number.isFinite(+c.x) ? +c.x : 0.5, y = Number.isFinite(+c.y) ? +c.y : 0.5;
   return { x: x * plan.W - w / 2, y: y * plan.H - h / 2, w, h };
 };
+const CLIP_TRANSITIONS = new Set(['dissolve', 'flash', 'wipe', 'slide', 'zoom', 'glitch']);
+J.clipTransitionAt = (clips, clip, t) => {
+  if (!CLIP_TRANSITIONS.has(clip.transition)) return null;
+  const start = +clip.start || 0, length = Math.max(0, +clip.dur || 0);
+  const duration = Math.min(J.clamp(+clip.transDur || 0.4, 0.1, 1.5), length * 0.8);
+  if (duration <= 0 || t < start || t >= start + duration) return null;
+  let previous = null;
+  for (const other of clips) {
+    if (other.id === clip.id || (other.place === 'front') !== (clip.place === 'front')) continue;
+    const otherStart = +other.start || 0, otherEnd = otherStart + (+other.dur || 0);
+    if (otherStart >= start - 0.001 || otherEnd < start - 0.06) continue;
+    if (!previous || otherStart > (+previous.start || 0)) previous = other;
+  }
+  return { kind: clip.transition, start, duration, p: J.clamp((t - start) / duration), previous };
+};
+J.clipHeldFrames = (clips, t) => {
+  const held = new Map();
+  for (const clip of clips || []) {
+    const transition = J.clipTransitionAt(clips, clip, t), previous = transition && transition.previous;
+    if (previous && t >= (+previous.start || 0) + (+previous.dur || 0)) {
+      held.set(previous.id, (+previous.trim || 0) + Math.max(0, (+previous.dur || 0) - 0.04));
+    }
+  }
+  return held;
+};
 
 class Renderer {
   constructor() {
@@ -4683,7 +4708,7 @@ class Renderer {
     }
     if (!key && !opt.transparent && !opt.noCharacter) {
       if (J.autoimgDraw) J.autoimgDraw(ctx, plan, scale, t);   // AUTOIMG
-      this.drawClips(ctx, plan, scale, 'back', t);
+      this.drawClips(ctx, plan, scale, 'back', t, opt.exportMedia);
     }
     const shx = J.rs(step, 71) * shake * 16 * u, shy = J.rs(step, 72) * shake * 11 * u;
     // ---------- content passes ----------
@@ -4769,7 +4794,7 @@ class Renderer {
       const k = J.clamp(mlt / MC.morph.dur), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       this.drawMorph(ctx, L, e, allowFilter);
     }
-    if (!key && !opt.transparent && !opt.noCharacter) this.drawClips(ctx, plan, scale, 'front', t);
+    if (!key && !opt.transparent && !opt.noCharacter) this.drawClips(ctx, plan, scale, 'front', t, opt.exportMedia);
     // ---------- cut-to-cut transition: composite the previous cut's resting frame with this one ----------
     if (!opt.noTrans && mainCut && mainCut.trans && J.TRANS[mainCut.trans] && mainCut.index > 0) {
       const lt = tq - mainCut.start, dur = mainCut.transDur || 0.35;
@@ -4797,20 +4822,51 @@ class Renderer {
   }
 
   /* clips sit in screen space: 'back' under the lyrics, 'front' over them and under the transitions */
-  drawClips(ctx, plan, scale, place, t) {
-    const list = plan.clips || [];
+  drawClips(ctx, plan, scale, place, t, exportMedia) {
+    const list = (plan.clips || []).filter(c => (c.place === 'front' ? 'front' : 'back') === place)
+      .slice().sort((a, b) => (+a.start || 0) - (+b.start || 0));
     const span = Math.max(0.05, plan.duration || 0);
+    const transitions = new Map(), held = new Set();
+    for (const c of list) {
+      const state = J.clipTransitionAt(list, c, t);
+      if (!state) continue;
+      transitions.set(c.id, state);
+      if (state.previous && t >= (+state.previous.start || 0) + (+state.previous.dur || 0)) held.add(state.previous.id);
+    }
     ctx.save();
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
     for (const c of list) {
-      if ((c.place === 'front' ? 'front' : 'back') !== place) continue;
       const dur = Math.min(Math.max(0.05, +c.dur || span), Math.max(0.05, span - (+c.start || 0)));
-      if (t < (+c.start || 0) || t >= (+c.start || 0) + dur) continue;
-      const media = J.clips && J.clips[c.id] && J.clips[c.id].el;
+      if ((t < (+c.start || 0) || t >= (+c.start || 0) + dur) && !held.has(c.id)) continue;
+      const rec = J.clips && J.clips[c.id];
+      const media = rec && (exportMedia && rec.exportEl || rec.el);
       const box = J.characterBox(plan, c, media);
       if (!box) continue;
-      try { ctx.drawImage(media, box.x, box.y, box.w, box.h); } catch (e) {}
+      const state = transitions.get(c.id);
+      ctx.save();
+      if (state) {
+        const p = state.p * state.p * (3 - 2 * state.p);
+        if (state.kind === 'wipe') { ctx.beginPath(); ctx.rect(0, 0, plan.W * p, plan.H); ctx.clip(); }
+        else if (state.kind === 'slide') ctx.translate((1 - p) * plan.W, 0);
+        else if (state.kind === 'dissolve' || state.kind === 'flash' || state.kind === 'zoom' || state.kind === 'glitch') ctx.globalAlpha = p;
+        if (state.kind === 'glitch') ctx.translate((1 - p) * Math.sin(Math.floor(t * 24) * 17) * plan.W * 0.045, 0);
+        if (state.kind === 'zoom') {
+          const z = 1 + (1 - p) * 0.28;
+          const w = box.w * z, h = box.h * z;
+          try { ctx.drawImage(media, box.x + (box.w - w) / 2, box.y + (box.h - h) / 2, w, h); } catch (e) {}
+        } else { try { ctx.drawImage(media, box.x, box.y, box.w, box.h); } catch (e) {} }
+        if (state.kind === 'flash') {
+          ctx.globalAlpha = Math.max(0, 1 - Math.abs(state.p - 0.42) / 0.34) * 0.85;
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, plan.W, plan.H);
+        }
+        if (state.kind === 'glitch') {
+          ctx.globalAlpha = (1 - state.p) * 0.18;
+          ctx.globalCompositeOperation = 'screen';
+          try { ctx.drawImage(media, box.x - plan.W * 0.015, box.y, box.w, box.h); } catch (e) {}
+        }
+      } else { try { ctx.drawImage(media, box.x, box.y, box.w, box.h); } catch (e) {} }
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -5868,21 +5924,32 @@ const idbGet = async (key) => {
   return await new Promise((res, rej) => { const tx = db.transaction('files', 'readonly'); const q = tx.objectStore('files').get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
 };
 J.saveClipFile = async (id, file) => {
-  try { const data = await file.arrayBuffer(); await idbPut('clip:' + id, { name: file.name, type: file.type, data }); return true; } catch (e) { return false; }
+  try { await idbPut('clip:' + id, { name: file.name, type: file.type, data: file }); return true; } catch (e) { return false; }
+};
+J.saveClipPreviewFile = async (id, file) => {
+  try { await idbPut('clip-preview:' + id, { name: file.name, type: file.type, data: file }); return true; } catch (e) { return false; }
 };
 J.loadClipFile = async (id) => {
   try {
     let rec = await idbGet('clip:' + id);
     if ((!rec || !rec.data) && id === 'legacy') rec = await idbGet('character');
     if (!rec || !rec.data) return null;
-    return new File([rec.data], rec.name || 'clip', { type: rec.type || '' });
+    return rec.data instanceof File ? rec.data : new File([rec.data], rec.name || 'clip', { type: rec.type || '' });
+  } catch (e) { return null; }
+};
+J.loadClipPreviewFile = async (id) => {
+  try {
+    const rec = await idbGet('clip-preview:' + id);
+    if (!rec || !rec.data) return null;
+    return rec.data instanceof File ? rec.data : new File([rec.data], rec.name || 'preview.mp4', { type: rec.type || '' });
   } catch (e) { return null; }
 };
 J.forgetClipFile = async (id) => {
   try {
     const db = await IDB.open();
-    await new Promise(res => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').delete('clip:' + id); if (id === 'legacy') tx.objectStore('files').delete('character'); tx.oncomplete = res; tx.onerror = res; });
-  } catch (e) {}
+    await new Promise((res, rej) => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').delete('clip:' + id); tx.objectStore('files').delete('clip-preview:' + id); if (id === 'legacy') tx.objectStore('files').delete('character'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    return true;
+  } catch (e) { return false; }
 };
 J.forgetAllClipFiles = async () => {
   try {
@@ -5890,7 +5957,7 @@ J.forgetAllClipFiles = async () => {
     const keys = await new Promise((res, rej) => { const tx = db.transaction('files', 'readonly'); const q = tx.objectStore('files').getAllKeys(); q.onsuccess = () => res(q.result || []); q.onerror = () => rej(q.error); });
     await new Promise(res => {
       const tx = db.transaction('files', 'readwrite');
-      for (const k of keys) if (k === 'character' || String(k).startsWith('clip:')) tx.objectStore('files').delete(k);
+      for (const k of keys) if (k === 'character' || String(k).startsWith('clip:') || String(k).startsWith('clip-preview:')) tx.objectStore('files').delete(k);
       tx.oncomplete = res; tx.onerror = res;
     });
   } catch (e) {}
@@ -5907,14 +5974,44 @@ const seekVideoTo = (v, target) => {
     try { v.pause(); v.currentTime = to; } catch (e) { finish(); }
   });
 };
+const exportVideoFor = async (c, rec) => {
+  if (!rec.preview) return rec.el;
+  if (rec.exportEl) return rec.exportEl;
+  if (!rec.exportLoading) rec.exportLoading = (async () => {
+    const file = await J.loadClipFile(c.sourceId || c.id);
+    if (!file) throw new Error('元動画を読み込めませんでした: ' + c.name);
+    const url = URL.createObjectURL(file), v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto';
+    try {
+      await new Promise((res, rej) => {
+        v.addEventListener('loadeddata', res, { once: true });
+        v.addEventListener('error', () => rej(new Error('元動画を再生できません: ' + c.name)), { once: true });
+        v.src = url; v.load();
+      });
+      rec.exportEl = v; rec.exportURL = url;
+      return v;
+    } catch (e) { URL.revokeObjectURL(url); throw e; }
+  })();
+  try { return await rec.exportLoading; } finally { rec.exportLoading = null; }
+};
+J.releaseExportClipMedia = () => {
+  for (const rec of Object.values(J.clips || {})) {
+    if (rec.exportEl) { rec.exportEl.pause(); rec.exportEl.removeAttribute('src'); rec.exportEl.load(); rec.exportEl = null; }
+    if (rec.exportURL) { URL.revokeObjectURL(rec.exportURL); rec.exportURL = null; }
+  }
+};
 /* export steps every visible video to this MV timestamp. A clip past its own end holds the last frame. */
-J.prepareClips = (t, clips) => Promise.all((clips || []).map(c => {
+J.prepareClips = (t, clips) => {
+  const held = J.clipHeldFrames(clips || [], t);
+  return Promise.all((clips || []).map(c => {
   const rec = J.clips && J.clips[c.id];
   if (!rec || rec.kind !== 'video') return Promise.resolve();
   const dur = Math.max(0.05, +c.dur || 0);
-  if (t < (+c.start || 0) || t >= (+c.start || 0) + dur) return Promise.resolve();
-  return seekVideoTo(rec.el, (+c.trim || 0) + (t - (+c.start || 0)));
-}));
+  if ((t < (+c.start || 0) || t >= (+c.start || 0) + dur) && !held.has(c.id)) return Promise.resolve();
+  const local = held.has(c.id) ? held.get(c.id) : (+c.trim || 0) + (t - (+c.start || 0));
+  return exportVideoFor(c, rec).then(v => seekVideoTo(v, local));
+  }));
+};
 
 /* rebuild a beat grid from a user BPM + first-beat offset */
 J.beatGrid = (bpm, offset, duration) => {
@@ -6050,6 +6147,7 @@ J.exportMP4 = async (o) => {
   const attempts = await J.videoAttempts(w, h, fps, bitrate);
   if (!attempts.length) throw new Error('이 브라우저는 동영상 인코딩(WebCodecs)을 지원하지 않습니다. 최신 Chrome 또는 Edge로 열어 주세요.');
   const tried = [];
+  try {
   for (let k = 0; k < attempts.length; k++) {
     const vc = attempts[k];
     try {
@@ -6065,6 +6163,7 @@ J.exportMP4 = async (o) => {
   }
   const err = new Error('MP4를 내보낼 수 없습니다. ' + (file ? '' : '「큰 동영상용(파일에 바로 저장)」을 쓰거나, ') + '해상도·fps·화질을 낮춰 보세요. 자세히: ' + tried.join(' ／ '));
   err.detail = tried; throw err;
+  } finally { if (J.releaseExportClipMedia) J.releaseExportClipMedia(); }
 };
 async function encodeMP4({ plan, project, audio, onProgress, signal, range, file, w, h, vc, note }) {
   const span = J.exportSpan(plan, range);
@@ -6094,7 +6193,7 @@ async function encodeMP4({ plan, project, audio, onProgress, signal, range, file
       if (venc.state === 'closed') throw new Error('인코더가 멈췄습니다');
       const ft = span.t0 + i / fps;
       if (!plan.keyBg && J.prepareClips) await J.prepareClips(ft, plan.clips);
-      R.frame(ctx, plan, ft, { scale });
+      R.frame(ctx, plan, ft, { scale, exportMedia: true });
       const vf = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
       try { venc.encode(vf, { keyFrame: i % (fps * 2) === 0 }); } finally { vf.close(); }
       let spins = 0;
@@ -6179,12 +6278,13 @@ J.exportPNGZip = async ({ plan, project, transparent, layers, onProgress, signal
   const fps = plan.fps, total = Math.max(1, Math.round(span.dur * fps));
   const zip = new ZipWriter();
   const scale = w / plan.W;
+  try {
   for (let i = 0; i < total; i += every) {
     if (signal && signal.aborted) throw new Error('취소했습니다');
     if (!transparent && !layers && J.prepareClips) await J.prepareClips(span.t0 + i / fps, plan.clips);
     const name = `jizura_${String(i).padStart(5, '0')}.png`;
     for (const layer of layers ? ['back', 'front'] : [null]) {
-      R.frame(ctx, plan, span.t0 + i / fps, { scale, transparent: transparent || !!layers, layer });
+      R.frame(ctx, plan, span.t0 + i / fps, { scale, transparent: transparent || !!layers, layer, exportMedia: true });
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       zip.add((layer ? layer + '/' : '') + name, new Uint8Array(await blob.arrayBuffer()));
     }
@@ -6192,6 +6292,7 @@ J.exportPNGZip = async ({ plan, project, transparent, layers, onProgress, signal
   }
   onProgress && onProgress(1, '완료');
   return zip.finish();
+  } finally { if (J.releaseExportClipMedia) J.releaseExportClipMedia(); }
 };
 
 /* ---------- plan JSON for the After Effects panel ---------- */
@@ -37605,12 +37706,15 @@ function mergeProject(p) {
   const axis = (v, d) => Number.isFinite(+v) ? J.clamp(+v, -1, 2) : d;
   const cleanClip = (c) => ({
     id: String(c.id).slice(0, 40),
+    ...(typeof c.sourceId === 'string' && /^[\w-]+$/.test(c.sourceId) ? { sourceId: c.sourceId.slice(0, 40) } : {}),
     place: c.place === 'front' ? 'front' : 'back',
     name: String(c.name || '').slice(0, 180),
     kind: c.kind === 'video' ? 'video' : 'image',
     start: Math.max(0, +c.start || 0),
     trim: Math.max(0, +c.trim || 0),
     dur: Math.max(0.1, +c.dur || 0.1),
+    transition: ['dissolve', 'flash', 'wipe', 'slide', 'zoom', 'glitch'].includes(c.transition) ? c.transition : 'none',
+    transDur: J.clamp(+c.transDur || 0.4, 0.1, 1.5),
     x: axis(c.x, 0.5), y: axis(c.y, 0.5),
     s: Number.isFinite(+c.s) ? J.clamp(+c.s, 0.05, 8) : 1,
   });
@@ -37780,7 +37884,9 @@ function tick(now) {
     syncClips(true);
     followTlPlayhead();
   }
-  if (S.need) { S.need = false; draw(); }
+  if (S.need && (!S.playing || !S.project.clips.some(c => c.kind === 'video') || now - (S.lastDrawAt || 0) >= 1000 / 30)) {
+    S.need = false; S.lastDrawAt = now; draw();
+  }
 }
 function updateTimeUI() {
   $('timeNow').textContent = J.fmtTime(S.t);
@@ -38966,25 +39072,36 @@ function updateTap() {
 function syncClips(playing) {
   const clips = (S.project && S.project.clips) || [];
   const span = S.plan ? S.plan.duration : 0;
+  const held = J.clipHeldFrames(clips, S.t);
   for (const c of clips) {
     const rec = J.clips && J.clips[c.id];
     if (!rec || rec.kind !== 'video' || !(rec.el.duration > 0)) continue;
     const v = rec.el;
     const dur = Math.min(Math.max(0.05, +c.dur || span), Math.max(0.05, span - (+c.start || 0)));
     const active = S.t >= (+c.start || 0) && S.t < (+c.start || 0) + dur;
-    const local = (+c.trim || 0) + (S.t - (+c.start || 0));
-    if (!active || !playing || (v.duration && local >= v.duration - 0.05)) {
+    const hold = held.has(c.id);
+    const local = hold ? held.get(c.id) : (+c.trim || 0) + (S.t - (+c.start || 0));
+    if ((!active && !hold) || !playing || hold || (v.duration && local >= v.duration - 0.05)) {
       v.pause();
-      if (active && Math.abs((v.currentTime || 0) - local) > 0.045) {
+      if ((active || hold) && Math.abs((v.currentTime || 0) - local) > 0.045) {
         try { v.currentTime = Math.min(Math.max(0, local), Math.max(0, v.duration - 0.04)); } catch (e) {}
       }
       continue;
     }
     if (v.paused) {
-      try { v.currentTime = Math.max(0, local); } catch (e) {}
-      const p = v.play(); if (p && p.catch) p.catch(() => {});
-    } else if (Math.abs(v.currentTime - local) > 0.2) {
-      try { v.currentTime = Math.max(0, local); } catch (e) {}
+      if (rec.playPending) continue;
+      if (!v.seeking && Math.abs(v.currentTime - local) > 0.1) {
+        try { v.currentTime = Math.max(0, local); rec.lastSeek = performance.now(); } catch (e) {}
+      }
+      try {
+        const p = v.play();
+        if (p && p.then) {
+          rec.playPending = true;
+          p.then(() => { rec.playPending = false; }, () => { rec.playPending = false; });
+        }
+      } catch (e) {}
+    } else if (!v.seeking && Math.abs(v.currentTime - local) > 0.5 && performance.now() - (rec.lastSeek || 0) > 1000) {
+      try { v.currentTime = Math.max(0, local); rec.lastSeek = performance.now(); } catch (e) {}
     }
   }
 }
@@ -38995,13 +39112,13 @@ function dropClipEl(id) {
   if (rec.el) { if (rec.el.pause) rec.el.pause(); if (rec.el.remove) rec.el.remove(); }
   delete J.clips[id];
 }
-async function attachClipFile(clip, file) {
+async function attachClipFile(clip, file, preview = false) {
   const isVideo = (file.type || '').startsWith('video/') || /\.(mp4|webm|mov|m4v|ogv)$/i.test(file.name);
   const url = URL.createObjectURL(file);
   const el = isVideo ? document.createElement('video') : new Image();
   if (isVideo) {
     el.muted = true; el.defaultMuted = true; el.playsInline = true; el.preload = 'auto'; el.volume = 0;
-    el.style.cssText = 'position:fixed;width:1px;height:1px;left:0;top:0;opacity:0;pointer-events:none';
+    el.style.cssText = 'position:fixed;width:2px;height:2px;left:0;top:0;opacity:0.01;pointer-events:none';
     document.body.appendChild(el);
   }
   try {
@@ -39012,7 +39129,7 @@ async function attachClipFile(clip, file) {
     });
   } catch (e) { URL.revokeObjectURL(url); if (el.remove) el.remove(); return false; }
   dropClipEl(clip.id);
-  J.clips[clip.id] = { el, url, kind: isVideo ? 'video' : 'image', name: file.name, mediaDur: isVideo ? el.duration : 0 };
+  J.clips[clip.id] = { el, url, kind: isVideo ? 'video' : 'image', name: file.name, originalName: clip.name, mediaDur: isVideo ? el.duration : 0, preview };
   return true;
 }
 async function loadProjectClips() {
@@ -39023,11 +39140,17 @@ async function loadProjectClips() {
   const clips = (S.project && S.project.clips) || [];
   const keep = new Set(clips.map(c => c.id));
   for (const id of Object.keys(J.clips || {})) if (!keep.has(id)) dropClipEl(id);
+  const files = new Map();
   for (const c of clips) {
     const have = J.clips[c.id];
-    if (have && have.name === c.name) continue;
-    const f = await J.loadClipFile(c.id);
-    if (f) await attachClipFile(c, f);
+    const id = c.sourceId || c.id;
+    if (!files.has(id)) {
+      const preview = c.kind === 'video' ? await J.loadClipPreviewFile(id) : null;
+      files.set(id, { preview, file: preview || await J.loadClipFile(id) });
+    }
+    const { preview, file } = files.get(id);
+    if (have && have.originalName === c.name && have.preview === !!preview && (!preview || have.name === preview.name)) continue;
+    if (file) await attachClipFile(c, file, !!preview);
   }
   if (S.plan) S.plan.clips = clips;
   S.need = true;

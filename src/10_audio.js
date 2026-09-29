@@ -134,21 +134,32 @@ const idbGet = async (key) => {
   return await new Promise((res, rej) => { const tx = db.transaction('files', 'readonly'); const q = tx.objectStore('files').get(key); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
 };
 J.saveClipFile = async (id, file) => {
-  try { const data = await file.arrayBuffer(); await idbPut('clip:' + id, { name: file.name, type: file.type, data }); return true; } catch (e) { return false; }
+  try { await idbPut('clip:' + id, { name: file.name, type: file.type, data: file }); return true; } catch (e) { return false; }
+};
+J.saveClipPreviewFile = async (id, file) => {
+  try { await idbPut('clip-preview:' + id, { name: file.name, type: file.type, data: file }); return true; } catch (e) { return false; }
 };
 J.loadClipFile = async (id) => {
   try {
     let rec = await idbGet('clip:' + id);
     if ((!rec || !rec.data) && id === 'legacy') rec = await idbGet('character');
     if (!rec || !rec.data) return null;
-    return new File([rec.data], rec.name || 'clip', { type: rec.type || '' });
+    return rec.data instanceof File ? rec.data : new File([rec.data], rec.name || 'clip', { type: rec.type || '' });
+  } catch (e) { return null; }
+};
+J.loadClipPreviewFile = async (id) => {
+  try {
+    const rec = await idbGet('clip-preview:' + id);
+    if (!rec || !rec.data) return null;
+    return rec.data instanceof File ? rec.data : new File([rec.data], rec.name || 'preview.mp4', { type: rec.type || '' });
   } catch (e) { return null; }
 };
 J.forgetClipFile = async (id) => {
   try {
     const db = await IDB.open();
-    await new Promise(res => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').delete('clip:' + id); if (id === 'legacy') tx.objectStore('files').delete('character'); tx.oncomplete = res; tx.onerror = res; });
-  } catch (e) {}
+    await new Promise((res, rej) => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').delete('clip:' + id); tx.objectStore('files').delete('clip-preview:' + id); if (id === 'legacy') tx.objectStore('files').delete('character'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    return true;
+  } catch (e) { return false; }
 };
 J.forgetAllClipFiles = async () => {
   try {
@@ -156,7 +167,7 @@ J.forgetAllClipFiles = async () => {
     const keys = await new Promise((res, rej) => { const tx = db.transaction('files', 'readonly'); const q = tx.objectStore('files').getAllKeys(); q.onsuccess = () => res(q.result || []); q.onerror = () => rej(q.error); });
     await new Promise(res => {
       const tx = db.transaction('files', 'readwrite');
-      for (const k of keys) if (k === 'character' || String(k).startsWith('clip:')) tx.objectStore('files').delete(k);
+      for (const k of keys) if (k === 'character' || String(k).startsWith('clip:') || String(k).startsWith('clip-preview:')) tx.objectStore('files').delete(k);
       tx.oncomplete = res; tx.onerror = res;
     });
   } catch (e) {}
@@ -173,14 +184,44 @@ const seekVideoTo = (v, target) => {
     try { v.pause(); v.currentTime = to; } catch (e) { finish(); }
   });
 };
+const exportVideoFor = async (c, rec) => {
+  if (!rec.preview) return rec.el;
+  if (rec.exportEl) return rec.exportEl;
+  if (!rec.exportLoading) rec.exportLoading = (async () => {
+    const file = await J.loadClipFile(c.sourceId || c.id);
+    if (!file) throw new Error('元動画を読み込めませんでした: ' + c.name);
+    const url = URL.createObjectURL(file), v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto';
+    try {
+      await new Promise((res, rej) => {
+        v.addEventListener('loadeddata', res, { once: true });
+        v.addEventListener('error', () => rej(new Error('元動画を再生できません: ' + c.name)), { once: true });
+        v.src = url; v.load();
+      });
+      rec.exportEl = v; rec.exportURL = url;
+      return v;
+    } catch (e) { URL.revokeObjectURL(url); throw e; }
+  })();
+  try { return await rec.exportLoading; } finally { rec.exportLoading = null; }
+};
+J.releaseExportClipMedia = () => {
+  for (const rec of Object.values(J.clips || {})) {
+    if (rec.exportEl) { rec.exportEl.pause(); rec.exportEl.removeAttribute('src'); rec.exportEl.load(); rec.exportEl = null; }
+    if (rec.exportURL) { URL.revokeObjectURL(rec.exportURL); rec.exportURL = null; }
+  }
+};
 /* export steps every visible video to this MV timestamp. A clip past its own end holds the last frame. */
-J.prepareClips = (t, clips) => Promise.all((clips || []).map(c => {
+J.prepareClips = (t, clips) => {
+  const held = J.clipHeldFrames(clips || [], t);
+  return Promise.all((clips || []).map(c => {
   const rec = J.clips && J.clips[c.id];
   if (!rec || rec.kind !== 'video') return Promise.resolve();
   const dur = Math.max(0.05, +c.dur || 0);
-  if (t < (+c.start || 0) || t >= (+c.start || 0) + dur) return Promise.resolve();
-  return seekVideoTo(rec.el, (+c.trim || 0) + (t - (+c.start || 0)));
-}));
+  if ((t < (+c.start || 0) || t >= (+c.start || 0) + dur) && !held.has(c.id)) return Promise.resolve();
+  const local = held.has(c.id) ? held.get(c.id) : (+c.trim || 0) + (t - (+c.start || 0));
+  return exportVideoFor(c, rec).then(v => seekVideoTo(v, local));
+  }));
+};
 
 /* rebuild a beat grid from a user BPM + first-beat offset */
 J.beatGrid = (bpm, offset, duration) => {

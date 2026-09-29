@@ -4,7 +4,11 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const LS_KEY = 'jizura.project.v1';
-const E = { project: null, plan: null, audio: null, renderer: new J.Renderer(), t: 0, playing: false, t0: 0, selected: null, drag: null };
+const DELETED_SOURCES_KEY = 'jizura.deletedSources.v1';
+const SNAP_KEY = 'jizura.editor.snap.v1';
+const TRANSITION_NAMES = { none: 'なし', dissolve: 'クロスフェード', flash: 'フラッシュ', wipe: 'ワイプ', slide: 'スライド', zoom: 'ズーム', glitch: 'グリッチ' };
+const E = { project: null, plan: null, audio: null, renderer: new J.Renderer(), t: 0, playing: false, t0: 0, selected: null, drag: null,
+  history: { current: null, undo: [], redo: [], restoring: false }, clipboard: null, snapEnabled: true };
 const bc = (() => { try { return new BroadcastChannel('jizura'); } catch (e) { return null; } })();
 
 function readProject() {
@@ -35,6 +39,41 @@ function writeClips() {
   if (E.plan) { E.plan.cutEdits = E.project.cutEdits; E.plan.autoimg = E.project.autoimg; }
   if ($('msg')) $('msg').textContent = '配置を保存しました';
   if (bc) bc.postMessage({ type: 'clips' });
+  recordHistory();
+}
+function layoutSnapshot() {
+  const a = E.project.autoimg || {};
+  return JSON.stringify({ clips: E.project.clips, cutEdits: E.project.cutEdits,
+    shots: a.shots || {}, fills: a.fills || [] });
+}
+function recordHistory() {
+  const h = E.history, next = layoutSnapshot();
+  if (h.restoring) return;
+  if (h.current && h.current !== next) {
+    h.undo.push(h.current);
+    if (h.undo.length > 50) h.undo.shift();
+    h.redo.length = 0;
+  }
+  h.current = next;
+}
+async function restoreHistory(redo = false) {
+  const h = E.history, from = redo ? h.redo : h.undo, to = redo ? h.undo : h.redo;
+  if (h.restoring || !from.length) return;
+  pause();
+  const state = from.pop();
+  to.push(h.current);
+  const data = JSON.parse(state);
+  h.restoring = true;
+  try {
+    E.project.clips = data.clips;
+    E.project.cutEdits = data.cutEdits;
+    if (E.project.autoimg) { E.project.autoimg.shots = data.shots; E.project.autoimg.fills = data.fills; }
+    E.selected = E.project.clips.some(c => c.id === E.selected) ? E.selected : null;
+    h.current = state;
+    writeClips(); renderTimeline();
+    await loadClips(); seek(E.t);
+    $('msg').textContent = redo ? 'やり直しました' : '元に戻しました';
+  } finally { h.restoring = false; }
 }
 function autoShots() { return J.autoimgShots ? J.autoimgShots(E.plan) : []; }
 function selectedAuto() {
@@ -126,14 +165,12 @@ function applyClipEdit(c, drag, dt, total, mediaDur) {
   const media = video ? mediaDur : Infinity;
   if (drag.mode === 'move') {
     const dur = Math.min(drag.dur, total);
-    let start = J.clamp(drag.start + dt, 0, Math.max(0, total - dur));
-    if (Math.abs(start - E.t) < 0.1) start = J.clamp(E.t, 0, Math.max(0, total - dur));
+    const start = J.clamp(drag.start + dt, 0, Math.max(0, total - dur));
     c.start = start; c.dur = dur; c.trim = drag.trim;
     return;
   }
   if (drag.mode === 'r') {
-    let dur = J.clamp(drag.dur + dt, 0.2, Math.max(0.2, Math.min(total - drag.start, media - drag.trim)));
-    if (Math.abs(drag.start + dur - E.t) < 0.1) dur = J.clamp(E.t - drag.start, 0.2, Math.max(0.2, Math.min(total - drag.start, media - drag.trim)));
+    const dur = J.clamp(drag.dur + dt, 0.2, Math.max(0.2, Math.min(total - drag.start, media - drag.trim)));
     c.start = drag.start; c.trim = drag.trim; c.dur = dur;
     return;
   }
@@ -146,19 +183,66 @@ function applyClipEdit(c, drag, dt, total, mediaDur) {
   c.dur = drag.dur - delta;
   c.trim = video ? drag.trim + delta : 0;
 }
+function snapClip(target, drag, total) {
+  if (!E.snapEnabled) return null;
+  const radius = 10 * drag.span / Math.max(1, drag.width);
+  const edges = drag.mode === 'move' ? [target.start, target.start + target.dur] :
+    [drag.mode === 'r' ? target.start + target.dur : target.start];
+  const marks = [{ t: E.t, label: '再生位置' }];
+  for (const c of E.project.clips) if (c.id !== drag.id) {
+    marks.push({ t: +c.start || 0, label: 'クリップ端' });
+    marks.push({ t: (+c.start || 0) + (+c.dur || 0), label: 'クリップ端' });
+  }
+  const video = drag.kind === 'video' && drag.media > 0;
+  let best = null, distance = radius + 1e-9;
+  for (const mark of marks) for (const edge of edges) {
+    if (mark.t < 0 || mark.t > total) continue;
+    const delta = mark.t - edge, d = Math.abs(delta);
+    if (d >= distance) continue;
+    if (drag.mode === 'move' && (target.start + delta < 0 || target.start + delta + target.dur > total)) continue;
+    if (drag.mode === 'r') {
+      const maxDur = Math.max(0.2, Math.min(total - drag.start, video ? drag.media - drag.trim : Infinity));
+      if (mark.t - drag.start < 0.2 || mark.t - drag.start > maxDur) continue;
+    }
+    if (drag.mode === 'l') {
+      const minStart = Math.max(0, drag.start - (video ? drag.trim : drag.start));
+      if (mark.t < minStart || mark.t > drag.start + drag.dur - 0.2) continue;
+    }
+    best = { t: mark.t, label: mark.label, delta }; distance = d;
+  }
+  if (!best) return null;
+  if (drag.mode === 'move') target.start += best.delta;
+  else if (drag.mode === 'r') target.dur = best.t - drag.start;
+  else {
+    target.start = best.t;
+    target.dur = drag.start + drag.dur - best.t;
+    target.trim = video ? drag.trim + best.t - drag.start : 0;
+  }
+  return best;
+}
+function showSnapGuide(snap) {
+  const guide = $('snapGuide');
+  if (!guide) return;
+  guide.hidden = !snap;
+  if (snap) {
+    const v = visible();
+    guide.style.left = ((snap.t - v.t0) / v.dur * 100) + '%';
+    guide.querySelector('span').textContent = snap.label + ' ' + J.fmtTime(snap.t);
+  }
+}
 function dropEl(id) {
   const rec = J.clips[id]; if (!rec) return;
   if (rec.url) URL.revokeObjectURL(rec.url);
   if (rec.el) { if (rec.el.pause) rec.el.pause(); if (rec.el.remove) rec.el.remove(); }
   delete J.clips[id];
 }
-async function attach(clip, file) {
+async function attach(clip, file, preview = false) {
   const isVideo = clip.kind === 'video' || (file.type || '').startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
   const url = URL.createObjectURL(file);
   const el = isVideo ? document.createElement('video') : new Image();
   if (isVideo) {
     el.muted = true; el.playsInline = true; el.preload = 'auto'; el.volume = 0;
-    el.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none';
+    el.style.cssText = 'position:fixed;width:2px;height:2px;left:0;top:0;opacity:0.01;pointer-events:none';
     document.body.appendChild(el);
   }
   await new Promise((res, rej) => {
@@ -168,15 +252,22 @@ async function attach(clip, file) {
   });
   dropEl(clip.id);
   clip.kind = isVideo ? 'video' : 'image';
-  J.clips[clip.id] = { el, url, kind: clip.kind, name: file.name, mediaDur: isVideo ? el.duration : 0 };
+  J.clips[clip.id] = { el, url, kind: clip.kind, name: file.name, originalName: clip.name, mediaDur: isVideo ? el.duration : 0, preview };
 }
 async function loadClips() {
   const keep = new Set(E.project.clips.map(c => c.id));
   for (const id of Object.keys(J.clips)) if (!keep.has(id)) dropEl(id);
+  const files = new Map();
   for (const c of E.project.clips) {
-    if (J.clips[c.id] && J.clips[c.id].name === c.name) continue;
-    const f = await J.loadClipFile(c.id);
-    if (f) { try { await attach(c, f); } catch (e) {} }
+    const id = sourceId(c);
+    if (!files.has(id)) {
+      const preview = c.kind === 'video' ? await J.loadClipPreviewFile(id) : null;
+      files.set(id, { preview, file: preview || await J.loadClipFile(id) });
+    }
+    const { preview, file } = files.get(id);
+    const have = J.clips[c.id];
+    if (have && have.originalName === c.name && have.preview === !!preview && (!preview || have.name === preview.name)) continue;
+    if (file) { try { await attach(c, file, !!preview); } catch (e) {} }
   }
 }
 
@@ -194,22 +285,33 @@ function stopAudio() { if (AP.src) { try { AP.src.stop(); } catch (e) {} AP.src 
 function audioTime() { return AP.ctx ? AP.ctx.currentTime - AP.startAt : 0; }
 
 function syncVideos(playing) {
+  const held = J.clipHeldFrames(E.project.clips, E.t);
   for (const c of E.project.clips) {
     const rec = J.clips[c.id];
     if (!rec || rec.kind !== 'video' || !(rec.el.duration > 0)) continue;
     const v = rec.el, sp = clipSpan(c);
     const active = E.t >= sp.start && E.t < sp.start + sp.dur;
-    const local = (+c.trim || 0) + (E.t - sp.start);
-    if (!active || !playing || local >= v.duration - 0.05) {
+    const hold = held.has(c.id);
+    const local = hold ? held.get(c.id) : (+c.trim || 0) + (E.t - sp.start);
+    if ((!active && !hold) || !playing || hold || local >= v.duration - 0.05) {
       v.pause();
-      if (active && Math.abs(v.currentTime - local) > 0.045) { try { v.currentTime = Math.min(Math.max(0, local), v.duration - 0.04); } catch (e) {} }
+      if ((active || hold) && Math.abs(v.currentTime - local) > 0.045) { try { v.currentTime = Math.min(Math.max(0, local), v.duration - 0.04); } catch (e) {} }
       continue;
     }
     if (v.paused) {
-      try { v.currentTime = Math.max(0, local); } catch (e) {}
-      const p = v.play(); if (p && p.catch) p.catch(() => {});
-    } else if (Math.abs(v.currentTime - local) > 0.2) {
-      try { v.currentTime = Math.max(0, local); } catch (e) {}
+      if (rec.playPending) continue;
+      if (!v.seeking && Math.abs(v.currentTime - local) > 0.1) {
+        try { v.currentTime = Math.max(0, local); rec.lastSeek = performance.now(); } catch (e) {}
+      }
+      try {
+        const p = v.play();
+        if (p && p.then) {
+          rec.playPending = true;
+          p.then(() => { rec.playPending = false; }, () => { rec.playPending = false; });
+        }
+      } catch (e) {}
+    } else if (!v.seeking && Math.abs(v.currentTime - local) > 0.5 && performance.now() - (rec.lastSeek || 0) > 1000) {
+      try { v.currentTime = Math.max(0, local); rec.lastSeek = performance.now(); } catch (e) {}
     }
   }
 }
@@ -243,12 +345,22 @@ function draw() {
     else if (cut) info.textContent = J.fmtTime(cut.start) + ' – ' + J.fmtTime(cut.end) + ' · 歌詞カット';
     else if (clip) {
       const end = clip.start + clip.dur;
-      info.textContent = J.fmtTime(clip.start) + ' – ' + J.fmtTime(end) + (clip.kind === 'video' ? '  ソース ' + J.fmtTime(clip.trim || 0) : '');
+      info.textContent = J.fmtTime(clip.start) + ' – ' + J.fmtTime(end) + (clip.kind === 'video' ? '  ソース ' + J.fmtTime(clip.trim || 0) : '') + (rec && rec.preview ? ' · 軽量プレビュー' : '');
     } else info.textContent = '';
   }
   $('shotImage').hidden = !auto;
   $('btnResetPosition').hidden = !auto && !cut;
   $('btnDelete').disabled = !clip && !(auto && auto.fill);
+  $('btnReplace').disabled = !clip || clip.kind !== 'video';
+  $('btnSplit').disabled = !selectedSplit();
+  $('clipTransitionControls').hidden = !clip;
+  if (clip) {
+    const select = $('clipTransition'), duration = $('clipTransDuration');
+    select.value = TRANSITION_NAMES[clip.transition] ? clip.transition : 'none';
+    duration.disabled = select.value === 'none';
+    if (document.activeElement !== duration) duration.value = String(+(+clip.transDur || 0.4).toFixed(2));
+    $('btnPreviewTransition').disabled = select.value === 'none';
+  }
 }
 function controlBox() {
   const clip = E.project.clips.find(x => x.id === E.selected);
@@ -296,7 +408,37 @@ function tick(now) {
   if (!E.playing || E.exporting) return;
   let t = E.audio ? audioTime() : (now - E.t0) / 1000;
   if (t >= E.plan.duration - 1e-3) { pause(); t = Math.max(0, E.plan.duration - 1e-3); }
-  E.t = t; syncVideos(true); draw();
+  E.t = t; syncVideos(true);
+  if (E.project.clips.some(c => c.kind === 'video') && now - (E.lastDrawAt || 0) < 1000 / 30) return;
+  E.lastDrawAt = now;
+  draw();
+}
+function sourceId(c) { return c.sourceId || c.id; }
+function deletedSources() {
+  try { return new Set(JSON.parse(localStorage.getItem(DELETED_SOURCES_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+}
+function rememberDeletedSource(id) {
+  if (E.project.clips.some(c => sourceId(c) === id)) return;
+  const pending = deletedSources();
+  pending.add(id);
+  localStorage.setItem(DELETED_SOURCES_KEY, JSON.stringify([...pending]));
+}
+async function finishDeletedSources() {
+  const pending = deletedSources();
+  if (!pending.size) return;
+  const used = new Set(E.project.clips.map(sourceId));
+  for (const id of pending) {
+    if (!used.has(id) && !await J.forgetClipFile(id)) continue;
+    pending.delete(id);
+  }
+  localStorage.setItem(DELETED_SOURCES_KEY, JSON.stringify([...pending]));
+}
+function selectedSplit() {
+  const clip = E.project.clips.find(c => c.id === E.selected);
+  if (!clip || clip.kind !== 'video' || E.project.clips.length >= 64) return null;
+  const sp = clipSpan(clip);
+  return E.t > sp.start + 0.2 && E.t < sp.start + sp.dur - 0.2 ? clip : null;
 }
 
 function lanesOf(list) {
@@ -332,7 +474,8 @@ function renderTimeline() {
   const fileBtn = (place, title) => `<button type="button" class="add" data-add="${place}" title="${title}">＋</button>`;
   const clipHtml = (it, h) => {
     const c = it.c;
-    return `<i class="block clip editable${c.id === E.selected ? ' on' : ''}" data-id="${c.id}" style="${posStyle(c.start, c.dur)};top:${4 + it.lane * h}px"><b class="handle l"></b>${escapeHtml(c.name)}<b class="handle r"></b></i>`;
+    const trans = TRANSITION_NAMES[c.transition] && c.transition !== 'none' ? c.transition : null;
+    return `<i class="block clip editable${c.id === E.selected ? ' on' : ''}" data-id="${c.id}" title="${trans ? '切替: ' + TRANSITION_NAMES[trans] : ''}" style="${posStyle(c.start, c.dur)};top:${4 + it.lane * h}px"><b class="handle l"></b>${trans ? '<em class="transition-mark">✦</em>' : ''}${escapeHtml(c.name)}<b class="handle r"></b></i>`;
   };
   const lyrics = (E.plan.cuts || []).filter(c => c.text || (c.params && c.params.titleText)).map(c => {
     const id = 'cut:' + c.editKey;
@@ -367,6 +510,7 @@ function renderTimeline() {
         (autoH ? `<div class="track auto-track" style="height:${autoH}px">${autoHtml}</div>` : '') +
         `<div class="track back" style="height:${backH}px">${back.items.map(it => clipHtml(it, laneH)).join('')}</div>` +
         `<div class="marks">${lineMarks()}</div>` +
+        `<div class="snap-guide" id="snapGuide" hidden><span></span></div>` +
         `<div class="playhead" id="playhead"><i></i></div>` +
       `</div>` +
     `</div>`;
@@ -444,6 +588,7 @@ function bindTimeline() {
     const dt = (e.clientX - E.drag.x) / Math.max(1, E.drag.width) * E.drag.span;
     const target = c || { start: E.drag.start, dur: E.drag.dur, trim: 0 };
     applyClipEdit(target, E.drag, dt, E.plan.duration, E.drag.media);
+    showSnapGuide(e.shiftKey ? null : snapClip(target, E.drag, E.plan.duration));
     if (shot) saveAuto(shot, { start: target.start, dur: target.dur });
     E.plan.clips = E.project.clips;
     const el = root.querySelector('.editable[data-id="' + E.drag.id + '"]');
@@ -454,6 +599,7 @@ function bindTimeline() {
     if (!E.drag || E.drag.preview) return;
     const edited = !E.drag.scrub;
     E.drag = null;
+    showSnapGuide(null);
     if (edited) { writeClips(); renderTimeline(); }
   };
   root.addEventListener('pointerup', end);
@@ -548,6 +694,72 @@ async function addFiles(place, files) {
     renderTimeline();
   }
 }
+async function replaceSelected(file) {
+  const clip = E.project.clips.find(c => c.id === E.selected);
+  if (!clip || clip.kind !== 'video' || !file) return;
+  const id = sourceId(clip);
+  E.adding = true;
+  try {
+    await attach(clip, file, true);
+    const duration = J.clips[clip.id].mediaDur;
+    if (E.project.clips.some(c => sourceId(c) === id && (+c.trim || 0) + c.dur > duration + 0.05)) throw new Error('元動画と長さが合いません');
+    const saved = await J.saveClipPreviewFile(id, file);
+    if (!saved) throw new Error('プレビュー用動画を保存できませんでした');
+    for (const c of E.project.clips) if (sourceId(c) === id) dropEl(c.id);
+    await loadClips();
+    $('msg').textContent = '軽量プレビューを設定しました。書き出しは元動画を使います';
+    draw();
+    if (bc) bc.postMessage({ type: 'clips' });
+  } catch (e) {
+    dropEl(clip.id);
+    await loadClips();
+    draw();
+    $('msg').textContent = e.message || String(e);
+  }
+  finally { E.adding = false; E.picking = false; }
+}
+function newClipId() {
+  let id;
+  do { id = 'c' + Math.random().toString(36).slice(2, 10); }
+  while (E.project.clips.some(c => c.id === id));
+  return id;
+}
+async function splitSelected() {
+  const clip = selectedSplit();
+  if (!clip) return;
+  pause();
+  const leftDur = E.t - clip.start;
+  const right = Object.assign({}, clip, {
+    id: newClipId(), sourceId: sourceId(clip), start: E.t,
+    trim: (+clip.trim || 0) + leftDur, dur: clip.dur - leftDur, transition: 'none',
+  });
+  clip.dur = leftDur;
+  E.project.clips.splice(E.project.clips.indexOf(clip) + 1, 0, right);
+  E.selected = right.id;
+  writeClips(); renderTimeline();
+  await loadClips(); seek(E.t);
+  $('msg').textContent = '再生位置で動画を分割しました';
+}
+function copySelected() {
+  const clip = E.project.clips.find(c => c.id === E.selected);
+  if (!clip) return false;
+  E.clipboard = Object.assign({}, clip, { sourceId: sourceId(clip) });
+  $('msg').textContent = 'クリップをコピーしました。Ctrl+Vで再生位置に貼り付けます';
+  return true;
+}
+async function pasteClip() {
+  if (!E.clipboard || E.project.clips.length >= 64) return false;
+  pause();
+  const clip = Object.assign({}, E.clipboard, { id: newClipId() });
+  clip.start = J.clamp(E.t, 0, Math.max(0, E.plan.duration - 0.2));
+  clip.dur = Math.min(clip.dur, Math.max(0.2, E.plan.duration - clip.start));
+  E.project.clips.push(clip);
+  E.selected = clip.id;
+  writeClips(); renderTimeline();
+  await loadClips(); seek(E.t);
+  $('msg').textContent = '再生位置に貼り付けました';
+  return true;
+}
 function removeSelected() {
   const shot = selectedAuto();
   if (shot && shot.fill && E.project.autoimg && Array.isArray(E.project.autoimg.fills)) {
@@ -558,9 +770,11 @@ function removeSelected() {
   const i = E.project.clips.findIndex(c => c.id === E.selected);
   if (i < 0) return;
   const id = E.project.clips[i].id;
+  const media = sourceId(E.project.clips[i]);
   E.project.clips.splice(i, 1);
-  dropEl(id); J.forgetClipFile(id);
+  dropEl(id);
   E.selected = null; writeClips(); renderTimeline();
+  rememberDeletedSource(media);
 }
 async function exportMp4() {
   if (E.exporting) return;
@@ -598,10 +812,75 @@ async function boot() {
   });
   await loadClips();
   if (J.autoimgRestore) await J.autoimgRestore(E.project);   // AUTOIMG
+  E.history.current = layoutSnapshot();
+  E.history.undo.length = 0;
+  E.history.redo.length = 0;
+  await finishDeletedSources();
+  E.snapEnabled = localStorage.getItem(SNAP_KEY) !== 'false';
+  $('snapClips').checked = E.snapEnabled;
+  $('snapClips').addEventListener('change', e => {
+    E.snapEnabled = e.target.checked;
+    localStorage.setItem(SNAP_KEY, String(E.snapEnabled));
+    showSnapGuide(null);
+  });
   draw();
   $('btnPlay').addEventListener('click', () => E.playing ? pause() : play());
   $('btnExport').addEventListener('click', exportMp4);
   $('btnDelete').addEventListener('click', removeSelected);
+  $('btnSplit').addEventListener('click', splitSelected);
+  $('clipTransition').addEventListener('change', e => {
+    const clip = E.project.clips.find(c => c.id === E.selected);
+    if (!clip || !TRANSITION_NAMES[e.target.value]) return;
+    clip.transition = e.target.value;
+    clip.transDur = J.clamp(+clip.transDur || 0.4, 0.1, 1.5);
+    writeClips(); renderTimeline();
+    seek(Math.min(E.plan.duration - 1e-3, clip.start + 0.1));
+  });
+  $('clipTransDuration').addEventListener('change', e => {
+    const clip = E.project.clips.find(c => c.id === E.selected);
+    if (!clip) return;
+    clip.transDur = J.clamp(+e.target.value || 0.4, 0.1, 1.5);
+    writeClips(); renderTimeline();
+    seek(Math.min(E.plan.duration - 1e-3, clip.start + Math.min(0.1, clip.transDur * 0.25)));
+  });
+  $('btnPreviewTransition').addEventListener('click', () => {
+    const clip = E.project.clips.find(c => c.id === E.selected);
+    if (!clip || !TRANSITION_NAMES[clip.transition] || clip.transition === 'none') return;
+    pause(); seek(Math.max(0, clip.start - 0.3)); play();
+  });
+  document.addEventListener('keydown', e => {
+    if (E.exporting || E.adding || E.picking || E.history.restoring || E.drag) return;
+    const target = e.target;
+    if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    if (mod && key === 'z') {
+      if (e.shiftKey ? E.history.redo.length : E.history.undo.length) {
+        e.preventDefault(); restoreHistory(e.shiftKey);
+      }
+    } else if (mod && key === 'y' && E.history.redo.length) {
+      e.preventDefault(); restoreHistory(true);
+    } else if (mod && key === 'c') {
+      if (copySelected()) e.preventDefault();
+    } else if (mod && key === 'v') {
+      if (E.clipboard) { e.preventDefault(); pasteClip(); }
+    } else if (!mod && (key === 'delete' || key === 'backspace')) {
+      if (E.project.clips.some(c => c.id === E.selected) || (selectedAuto() && selectedAuto().fill)) {
+        e.preventDefault(); removeSelected();
+      }
+    }
+  });
+  $('btnReplace').addEventListener('click', () => {
+    if (!E.project.clips.some(c => c.id === E.selected)) return;
+    E.picking = true;
+    $('replaceClip').click();
+  });
+  $('replaceClip').addEventListener('change', () => {
+    const input = $('replaceClip'), file = input.files[0];
+    input.value = '';
+    if (file) replaceSelected(file);
+    else E.picking = false;
+  });
   $('shotImage').addEventListener('change', e => {
     const shot = selectedAuto(); if (!shot) return;
     saveAuto(shot, { image: +e.target.value }); writeClips(); draw(); renderTimeline();
@@ -635,8 +914,15 @@ async function boot() {
   const reloadFromMain = () => {
     if (E.drag || E.exporting || E.picking || E.adding) return;
     const t = E.t;
+    const before = E.history.current;
     E.project = readProject();
     replan();
+    const next = layoutSnapshot();
+    if (next !== before) {
+      E.history.current = next;
+      E.history.undo.length = 0;
+      E.history.redo.length = 0;
+    }
     refreshShotPicker();
     Promise.all([
       loadClips(),
